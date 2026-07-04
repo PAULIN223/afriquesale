@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"c:\\\\Users\\\\RAPIDE COMPUTER\\\\Desktop\\\\afric\\\\afriquesale\\\\app\\\\Http\\\\Controllers\\\\Auth\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"c:\\\\Users\\\\RAPIDE COMPUTER\\\\Desktop\\\\afric\\\\afriquesale\\\\app\\\\Http\\\\Controllers\\\\Admin\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"c:\\\\Users\\\\RAPIDE COMPUTER\\\\Desktop\\\\afric\\\\afriquesale\\\\app\\\\Console\\\\Commands\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"c:\\\\Users\\\\RAPIDE COMPUTER\\\\Desktop\\\\afric\\\\afriquesale\\\\app\\\\Mail\")"
+    ]
+  }
+}
