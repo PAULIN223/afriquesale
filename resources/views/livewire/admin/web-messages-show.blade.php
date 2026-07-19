@@ -17,7 +17,12 @@
                         <span class="text-xs font-medium {{ $isAdmin ? 'text-white' : 'text-gray-700' }} line-clamp-2">{{ $msg->product->nom }}</span>
                     </a>
                     @endif
-                    <p>{{ $msg->body }}</p>
+                    @if($msg->image_path)
+                    <a href="{{ $msg->image_url }}" target="_blank" class="block mb-2">
+                        <img src="{{ $msg->image_url }}" class="max-h-48 rounded-lg object-cover">
+                    </a>
+                    @endif
+                    <p class="whitespace-pre-line">{{ $msg->body }}</p>
                     <p class="text-[10px] mt-1 opacity-60">{{ $msg->created_at->format('d/m H:i') }}</p>
                 </div>
             </div>

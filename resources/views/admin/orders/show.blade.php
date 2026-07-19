@@ -47,6 +47,15 @@
                 @endif
             </div>
         </div>
+
+        @if($order->preuve_paiement)
+        <div class="bg-white rounded-2xl border border-gray-100 p-5">
+            <h3 class="font-bold text-gray-800 mb-3">Preuve de paiement</h3>
+            <a href="{{ '/storage/' . $order->preuve_paiement }}" target="_blank">
+                <img src="{{ '/storage/' . $order->preuve_paiement }}" class="max-h-64 rounded-xl object-contain border border-gray-100">
+            </a>
+        </div>
+        @endif
     </div>
 
     {{-- Sidebar --}}

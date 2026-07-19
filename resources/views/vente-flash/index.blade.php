@@ -1,5 +1,6 @@
 @extends('layouts.app')
-@section('title', 'Vente Flash — AfricSales')
+@section('title', 'Vente Flash — Promotions du moment — AfricSales')
+@section('description', 'Profitez des meilleures promotions et ventes flash sur AfricSales : produits à prix réduits, disponibles pour un temps limité.')
 
 @section('content')
 <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
@@ -64,7 +65,7 @@
 
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
         @foreach($products as $product)
-        <div class="product-card bg-white rounded-2xl border border-[#E63B2E]/20 overflow-hidden group" x-data="{ added: false }">
+        <div class="product-card bg-white rounded-2xl border border-[#E63B2E]/20 overflow-hidden group">
             <div class="relative overflow-hidden aspect-square bg-gray-50">
                 <a href="/products/{{ $product->id }}">
                     <img src="{{ $product->image_url ? '/image-proxy?url=' . urlencode($product->image_url) : '/images/placeholder.png' }}"
@@ -111,26 +112,9 @@
                         </span>
                     </div>
                 </div>
-                @if($product->stock > 0)
-                <form method="POST" action="/cart/add" class="mt-3">
-                    @csrf
-                    <input type="hidden" name="product_id" value="{{ $product->id }}">
-                    <button type="submit" x-on:click="added = true; setTimeout(() => added = false, 2000)"
-                            class="w-full py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5"
-                            :class="added ? 'bg-green-500 text-white' : 'bg-[#E63B2E] hover:bg-[#CC2F23] text-white'">
-                        <span x-show="!added" class="flex items-center gap-1.5">
-                            <i data-lucide="shopping-cart" class="w-3.5 h-3.5"></i> Ajouter
-                        </span>
-                        <span x-show="added" class="flex items-center gap-1.5">
-                            <i data-lucide="check" class="w-3.5 h-3.5"></i> Ajouté !
-                        </span>
-                    </button>
-                </form>
-                @else
-                <button disabled class="mt-3 w-full py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-                    Indisponible
-                </button>
-                @endif
+                <div class="mt-3">
+                    <livewire:client.add-to-cart-button :product="$product" :key="'cart-btn-'.$product->id" />
+                </div>
             </div>
         </div>
         @endforeach

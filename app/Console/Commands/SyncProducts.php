@@ -12,7 +12,9 @@ use Illuminate\Support\Facades\Log;
 
 class SyncProducts extends Command
 {
-    protected $signature   = 'products:sync';
+    protected $signature   = 'products:sync
+        {--firebase : Pousser aussi les produits vers Firestore}
+        {--cache-images : Télécharger les images pendant la synchronisation}';
     protected $description = 'Synchronise les produits depuis Google Sheets';
 
     const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQIbdJepesl5mrGKnfYeP1zDcCHxUR6lYOnSvBRN2Z8nbgIG2oJOkrFhnxwDmUWXcFI22WYjYFS8u6O/pub?output=csv';
@@ -109,19 +111,19 @@ class SyncProducts extends Command
             $prix    = $this->parsePrice($prixRaw);
             if ($prix <= 0) { $skipped++; continue; }
 
-            // Prix original (barré)
-            $prixOrigRaw  = $this->col($row, $colMap['prix_original']);
-            $prixOriginal = $this->parsePrice($prixOrigRaw);
-            if ($prixOriginal && $prixOriginal <= $prix) {
-                $prixOriginal = null; // Pas de remise si prix barré <= prix actuel
-            }
+            // Prix remisé depuis la colonne "Discounted Price"
+            $discountedRaw   = $this->col($row, $colMap['prix_original']);
+            $discountedPrice = $this->parsePrice($discountedRaw);
+            $hasValidDiscount = $discountedPrice > 0 && $discountedPrice < $prix;
+            $prixOriginal    = $hasValidDiscount ? $prix : null;
 
             // Catégorie : "En promo,Mode dame" → garder la vraie catégorie
             $catRaw = $this->col($row, $colMap['categorie']);
             $categorieName = $this->extractMainCategory($catRaw);
 
-            // Image URL — essayer Image Principale d'abord, puis Image 1..20 comme fallback
-            $imageUrl = $this->resolveImageUrl($row, $colMap['image']);
+            // Images — essayer Image Principale d'abord, puis Image 1..20 comme galerie
+            $imageUrls = $this->resolveImageUrls($row, $colMap['image']);
+            $imageUrl  = $imageUrls[0] ?? null;
 
             // Description
             $description = $this->col($row, $colMap['description']);
@@ -132,22 +134,31 @@ class SyncProducts extends Command
             if ($stock === 0) $stock = 99; // stock par défaut si absent ou non numérique dans le CSV
 
             // Disponibilité
-            $availability = strtolower($this->col($row, $colMap['availability']) ?: 'show');
-            $actif        = in_array($availability, ['show', 'yes', 'active', '1', 'true', 'oui', '']);
+            $availability = $this->normalizeAvailability($this->col($row, $colMap['availability']));
+            $actif        = $availability !== 'hide';
 
             // Catégorie en DB
             $category = Category::findOrCreateByName($categorieName);
 
             $sourceRow   = 'row_' . ($lineIndex + 2);
+            $displayPrice = $hasValidDiscount ? $discountedPrice : $prix;
             $productData = [
                 'nom'           => ucwords(strtolower($nom)),
-                'prix'          => $prix,
+                'prix'          => $displayPrice,
                 'prix_original' => $prixOriginal,
+                'discounted_price' => $hasValidDiscount ? $discountedPrice : null,
+                'moq'           => $this->col($row, $colMap['moq']) ?: null,
                 'description'   => $description ?: null,
+                'marque'        => $this->col($row, $colMap['marque']) ?: null,
+                'size'          => $this->col($row, $colMap['taille']) ?: null,
+                'color'         => $this->col($row, $colMap['couleur']) ?: null,
+                'model'         => $this->col($row, $colMap['modele']) ?: null,
                 'image_url'     => $imageUrl ?: null,
+                'image_urls'    => $imageUrls ?: null,
                 'category_id'   => $category->id,
                 'categorie'     => $categorieName,
-                'stock'         => $stock,
+                'stock'         => $availability === 'out of stock' ? 0 : $stock,
+                'availability'  => $availability,
                 'actif'         => $actif,
             ];
 
@@ -165,25 +176,35 @@ class SyncProducts extends Command
 
             // Pousse aussi le prix à jour vers Firestore (collection "products" lue par l'app Android),
             // sur l'id MySQL du produit pour que les ré-synchronisations mettent à jour le même document.
-            try {
-                $firebase->createOrUpdateProduct([
-                    'id'            => (string) $product->id,
-                    'nom'           => $productData['nom'],
-                    'prix'          => $productData['prix'],
-                    'prix_original' => $productData['prix_original'],
-                    'categorie'     => $productData['categorie'],
-                    'description'   => $productData['description'],
-                    'stock'         => $productData['stock'],
-                    'actif'         => $productData['actif'],
-                    'image'         => $productData['image_url'],
-                ]);
-            } catch (\Exception $e) {
-                Log::warning('SyncProducts — échec sync Firestore pour ' . $sourceRow . ' : ' . $e->getMessage());
+            if ($this->option('firebase')) {
+                try {
+                    $firebase->createOrUpdateProduct([
+                        'id'            => (string) $product->id,
+                        'nom'           => $productData['nom'],
+                        'prix'          => $productData['prix'],
+                        'prix_original' => $productData['prix_original'],
+                        'discounted_price' => $productData['discounted_price'],
+                        'categorie'     => $productData['categorie'],
+                        'description'   => $productData['description'],
+                        'moq'           => $productData['moq'],
+                        'marque'        => $productData['marque'],
+                        'size'          => $productData['size'],
+                        'color'         => $productData['color'],
+                        'model'         => $productData['model'],
+                        'stock'         => $productData['stock'],
+                        'availability'  => $productData['availability'],
+                        'actif'         => $productData['actif'],
+                        'image'         => $productData['image_url'],
+                        'images'        => $productData['image_urls'],
+                    ]);
+                } catch (\Exception $e) {
+                    Log::warning('SyncProducts — échec sync Firestore pour ' . $sourceRow . ' : ' . $e->getMessage());
+                }
             }
 
             // Pré-cache l'image produit pour un affichage instantané côté client
             // (évite que le premier visiteur paie le coût du téléchargement à froid).
-            if ($imageUrl && !$imageCache->isCached($imageUrl)) {
+            if ($this->option('cache-images') && $imageUrl && !$imageCache->isCached($imageUrl)) {
                 try {
                     $imageCache->cache($imageUrl);
                 } catch (\Exception $e) {
@@ -205,7 +226,12 @@ class SyncProducts extends Command
             'nom'           => ['name', 'nom', 'produit', 'product', 'titre', 'title'],
             'prix'          => ['price', 'prix', 'tarif', 'cost', 'cout'],
             'prix_original' => ['discounted price', 'discounted_price', 'prix_original', 'old_price', 'prix_barre'],
+            'moq'           => ['moq', 'minimum order', 'minimum order quantity', 'quantite minimum', 'quantité minimum'],
             'description'   => ['description', 'desc', 'detail', 'details'],
+            'marque'        => ['marque', 'brand'],
+            'taille'        => ['size', 'taille'],
+            'couleur'       => ['color', 'couleur', 'colour'],
+            'modele'        => ['model', 'modele', 'modèle'],
             'categorie'     => ['category', 'categorie', 'cat', 'type'],
             'stock'         => ['stock', 'quantity', 'quantite', 'qty'],
             'availability'  => ['availability', 'disponibilite', 'available', 'status'],
@@ -231,19 +257,57 @@ class SyncProducts extends Command
      * Cherche la première URL d'image valide dans la ligne CSV.
      * Commence par "Image Principale" (col 14), puis essaie Image 1..20 (col 15..34).
      */
-    private function resolveImageUrl(array $row, int $mainImageCol): ?string
+    private function resolveImageUrls(array $row, int $mainImageCol): array
     {
         // Tester la colonne principale ET les colonnes Image 1 à Image 20
-        $colsToTry = array_merge([$mainImageCol], range(15, 34));
+        $colsToTry = array_unique(array_merge([$mainImageCol], range(15, 34)));
+        $urls = [];
 
         foreach ($colsToTry as $col) {
-            $url = $this->col($row, $col);
-            if (!empty($url) && filter_var($url, FILTER_VALIDATE_URL)) {
-                return $url;
+            $url = $this->normalizeImageUrl($this->col($row, $col));
+            if ($url !== null) {
+                $urls[] = $url;
             }
         }
 
-        return null;
+        return array_values(array_unique($urls));
+    }
+
+    private function normalizeImageUrl(string $raw): ?string
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return null;
+        }
+
+        if (preg_match('/IMAGE\s*\(\s*"([^"]+)"/i', $raw, $matches)) {
+            $raw = $matches[1];
+        } elseif (preg_match('/https?:\/\/[^\s,"\')]+/i', $raw, $matches)) {
+            $raw = $matches[0];
+        }
+
+        $raw = trim($raw, " \t\n\r\0\x0B\"'");
+
+        if (!filter_var($raw, FILTER_VALIDATE_URL)) {
+            return null;
+        }
+
+        if (preg_match('~/file/d/([^/]+)~', $raw, $matches) || preg_match('~[?&]id=([^&]+)~', $raw, $matches)) {
+            return 'https://drive.google.com/thumbnail?id=' . $matches[1] . '&sz=w1200';
+        }
+
+        return $raw;
+    }
+
+    private function normalizeAvailability(string $raw): string
+    {
+        $value = strtolower(trim($raw));
+
+        return match ($value) {
+            'hide', 'hidden', 'no', 'non', 'false', '0' => 'hide',
+            'out of stock', 'out-of-stock', 'out_of_stock', 'rupture', 'rupture de stock' => 'out of stock',
+            default => 'show',
+        };
     }
 
     private function parsePrice(string $raw): float

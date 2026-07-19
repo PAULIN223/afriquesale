@@ -26,6 +26,7 @@ class FirebaseMessageController extends Controller
                     'name'     => ($msg['isFromUser'] ?? true) ? ($msg['senderName'] ?? 'Client') : 'Client',
                     'last_msg' => $msg['text'] ?? $msg['body'] ?? '',
                     'count'    => 0,
+                    'unread'   => 0,
                     'date'     => $msg['createdAt'] ?? null,
                 ];
             } elseif (($msg['isFromUser'] ?? true) && $conversations[$chatId]['name'] === 'Client') {
@@ -34,6 +35,9 @@ class FirebaseMessageController extends Controller
                 $conversations[$chatId]['name'] = $msg['senderName'] ?? 'Client';
             }
             $conversations[$chatId]['count']++;
+            if (($msg['isFromUser'] ?? false) && !($msg['read'] ?? false)) {
+                $conversations[$chatId]['unread']++;
+            }
         }
 
         return view('admin.firebase.messages.index', [

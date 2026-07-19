@@ -3,11 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@yield('title', 'AfricSales - Marketplace Africaine')</title>
-    <meta name="description" content="@yield('description', 'AfricSales - La meilleure marketplace d\'Afrique. Produits de qualité livrés chez vous.')">
-    <meta property="og:title" content="@yield('title', 'AfricSales')">
-    <meta property="og:description" content="@yield('description', 'AfricSales - Marketplace Africaine')">
-    <meta property="og:image" content="@yield('og_image', '/images/logo.png')">
+    @php
+        $pageTitle       = trim($__env->yieldContent('title', 'AfricSales - Marketplace Africaine'));
+        $pageDescription = trim($__env->yieldContent('description', "AfricSales - La meilleure marketplace d'Afrique. Produits de qualité livrés chez vous."));
+        $pageImage       = trim($__env->yieldContent('og_image', '/images/logo.png')) ?: '/images/logo.png';
+        $canonicalUrl    = trim($__env->yieldContent('canonical', url()->current()));
+    @endphp
+    <title>{{ $pageTitle }}</title>
+    <meta name="description" content="{{ $pageDescription }}">
+    <link rel="canonical" href="{{ $canonicalUrl }}">
+
+    <meta property="og:site_name" content="AfricSales">
+    <meta property="og:type" content="@yield('og_type', 'website')">
+    <meta property="og:locale" content="fr_FR">
+    <meta property="og:url" content="{{ $canonicalUrl }}">
+    <meta property="og:title" content="{{ $pageTitle }}">
+    <meta property="og:description" content="{{ $pageDescription }}">
+    <meta property="og:image" content="{{ url($pageImage) }}">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ $pageTitle }}">
+    <meta name="twitter:description" content="{{ $pageDescription }}">
+    <meta name="twitter:image" content="{{ url($pageImage) }}">
+
+    <link rel="icon" href="/favicon.ico" sizes="any">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -107,13 +126,7 @@
                         @endif
                     </a>
 
-                    <a href="/cart" class="relative flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors text-gray-700">
-                        <i data-lucide="shopping-cart" class="w-5 h-5 text-gray-500"></i>
-                        <span class="hidden md:block text-sm font-medium">Panier</span>
-                        @if(($cartCount ?? 0) > 0)
-                        <span class="bg-[#E63B2E] text-white text-xs px-1.5 py-0.5 rounded-full font-bold min-w-[20px] text-center">{{ $cartCount }}</span>
-                        @endif
-                    </a>
+                    <livewire:client.cart-badge />
 
                     <button @click="mobileMenu = !mobileMenu" class="md:hidden p-2.5 rounded-xl hover:bg-gray-50 text-gray-600">
                         <i data-lucide="menu" class="w-5 h-5" x-show="!mobileMenu"></i>
@@ -156,8 +169,10 @@
                               {{ request()->routeIs($item['route']) ? 'bg-[#E63B2E] text-white' : 'text-gray-600 hover:bg-[#E63B2E]/10 hover:text-[#E63B2E]' }}">
                         <i data-lucide="{{ $item['icon'] }}" class="w-3.5 h-3.5"></i>
                         {{ $item['label'] }}
-                        @if($item['route'] === 'messages.index' && ($unreadMessagesCount ?? 0) > 0)
-                        <span class="absolute -top-1 -right-1 bg-[#E63B2E] text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold {{ request()->routeIs($item['route']) ? 'ring-2 ring-white' : '' }}">{{ $unreadMessagesCount }}</span>
+                        @if($item['route'] === 'messages.index')
+                        @auth
+                        <livewire:client.message-badge variant="desktop" :key="'msgbadge-desktop'" />
+                        @endauth
                         @endif
                     </a>
                     @endforeach
@@ -281,8 +296,10 @@
             <a href="{{ $item['url'] }}" wire:navigate
                class="relative flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors
                       {{ request()->routeIs($item['route']) ? 'text-[#E63B2E]' : 'text-gray-400 hover:text-[#E63B2E]' }}">
-                @if($item['route'] === 'messages.index' && ($unreadMessagesCount ?? 0) > 0)
-                <span class="absolute top-1 right-[calc(50%-14px)] bg-[#E63B2E] text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold">{{ $unreadMessagesCount }}</span>
+                @if($item['route'] === 'messages.index')
+                @auth
+                <livewire:client.message-badge variant="mobile" :key="'msgbadge-mobile'" />
+                @endauth
                 @endif
                 <i data-lucide="{{ $item['icon'] }}" class="w-5 h-5"></i>
                 <span class="text-[9px] font-medium leading-none">{{ $item['label'] }}</span>
@@ -298,6 +315,9 @@
         });
         document.addEventListener('livewire:navigated', function () {
             lucide.createIcons();
+        });
+        document.addEventListener('livewire:init', function () {
+            Livewire.hook('morph.updated', function () { lucide.createIcons(); });
         });
     </script>
     @stack('scripts')

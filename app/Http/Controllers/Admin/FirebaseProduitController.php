@@ -36,7 +36,7 @@ class FirebaseProduitController extends Controller
     /** Sync Google Sheet → MySQL + Firestore */
     public function sync()
     {
-        Artisan::call('products:sync');
+        Artisan::call('products:sync', ['--firebase' => true]);
         $output = Artisan::output();
         return redirect()->route('admin.produits.index')
                          ->with('success', 'Synchronisation effectuée : ' . trim($output));

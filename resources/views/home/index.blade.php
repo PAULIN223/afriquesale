@@ -4,6 +4,33 @@
 @section('description', 'Découvrez les meilleurs produits africains. Livraison rapide et paiement sécurisé.')
 
 @section('content')
+@php
+    $orgJsonLd = [
+        '@context' => 'https://schema.org',
+        '@type'    => 'Organization',
+        'name'     => 'AfricSales',
+        'url'      => url('/'),
+        'logo'     => url('/images/logo.png'),
+    ];
+
+    $siteJsonLd = [
+        '@context'        => 'https://schema.org',
+        '@type'           => 'WebSite',
+        'name'            => 'AfricSales',
+        'url'             => url('/'),
+        'potentialAction' => [
+            '@type'       => 'SearchAction',
+            'target'      => [
+                '@type'       => 'EntryPoint',
+                'urlTemplate' => url('/products') . '?search={search_term_string}',
+            ],
+            'query-input' => 'required name=search_term_string',
+        ],
+    ];
+@endphp
+<script type="application/ld+json">@json($orgJsonLd, JSON_UNESCAPED_UNICODE)</script>
+<script type="application/ld+json">@json($siteJsonLd, JSON_UNESCAPED_UNICODE)</script>
+
 
 {{-- Hero Carousel --}}
 <section class="relative bg-gray-900">

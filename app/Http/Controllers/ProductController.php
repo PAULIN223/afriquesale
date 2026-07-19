@@ -45,12 +45,40 @@ class ProductController extends Controller
             Category::where('actif', true)->has('products')->orderBy('nom')->get()
         );
 
-        return view('products.index', compact('products', 'categories'));
+        $selectedCategory = $request->filled('category')
+            ? $categories->firstWhere('slug', $request->category)
+            : null;
+
+        if ($request->filled('search')) {
+            $metaTitle       = 'Résultats pour "' . $request->search . '" — AfricSales';
+            $metaDescription = 'Découvrez les produits correspondant à "' . $request->search . '" sur AfricSales.';
+        } elseif ($selectedCategory) {
+            $metaTitle       = $selectedCategory->nom . ' — AfricSales';
+            $metaDescription = 'Découvrez notre sélection ' . $selectedCategory->nom . ' au meilleur prix, avec livraison rapide partout en Afrique.';
+        } else {
+            $metaTitle       = 'Tous nos produits — AfricSales';
+            $metaDescription = 'Parcourez tous les produits disponibles sur AfricSales : mode, électronique, maison et bien plus, au meilleur prix.';
+        }
+
+        $canonicalUrl = url('/products') . ($selectedCategory ? '?category=' . $selectedCategory->slug : '');
+
+        return view('products.index', compact('products', 'categories', 'metaTitle', 'metaDescription', 'canonicalUrl'));
     }
 
     public function show(int $id)
     {
         $product = Product::actif()->with('category')->findOrFail($id);
+        $variants = Product::actif()
+            ->where('id', '!=', $product->id)
+            ->when($product->model, fn($q) => $q->where('model', $product->model))
+            ->when(!$product->model, fn($q) => $q->where('nom', $product->nom))
+            ->where(function ($q) {
+                $q->whereNotNull('image_url')->orWhereNotNull('image_urls');
+            })
+            ->orderBy('color')
+            ->take(12)
+            ->get();
+
         $related = Product::actif()
             ->where('id', '!=', $product->id)
             ->where('category_id', $product->category_id)
@@ -62,7 +90,7 @@ class ProductController extends Controller
             $inWishlist = auth()->user()->wishlists()->where('product_id', $product->id)->exists();
         }
 
-        return view('products.show', compact('product', 'related', 'inWishlist'));
+        return view('products.show', compact('product', 'variants', 'related', 'inWishlist'));
     }
 
     public function venteFlash()

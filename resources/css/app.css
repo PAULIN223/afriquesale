@@ -15,6 +15,9 @@
     --color-brand-light: #FDECEA;
 }
 
+/* Alpine cloak: hide until Alpine has initialized */
+[x-cloak] { display: none !important; }
+
 /* Scrollbar hide utility */
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }

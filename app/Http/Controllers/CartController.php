@@ -28,6 +28,10 @@ class CartController extends Controller
             return redirect('/login')->with('intended', '/cart');
         }
 
+        if (!$product->is_purchasable) {
+            return back()->with('error', 'Ce produit est en rupture de stock.');
+        }
+
         $cartItem = CartItem::where('user_id', auth()->id())
             ->where('product_id', $product->id)
             ->first();

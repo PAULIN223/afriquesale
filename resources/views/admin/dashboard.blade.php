@@ -39,17 +39,81 @@
     {{-- Orders chart --}}
     <div class="bg-white rounded-2xl border border-gray-100 p-5">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="font-semibold text-gray-800">Commandes — 30 derniers jours</h3>
+            <h3 class="font-semibold text-gray-800">Commandes Web — 30 derniers jours</h3>
         </div>
-        <div id="ordersChart"></div>
+        <div wire:ignore
+             x-data
+             x-init='new ApexCharts($el, {
+                chart: { type: "area", height: 200, toolbar: { show: false } },
+                series: [{ name: "Commandes", data: @json($ordersChart->pluck("count")) }],
+                xaxis: { categories: @json($ordersChart->pluck("date")), labels: { rotate: -45, style: { fontSize: "10px" } } },
+                colors: ["#E63B2E"],
+                fill: { type: "gradient", gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05 } },
+                stroke: { curve: "smooth", width: 2 },
+                dataLabels: { enabled: false },
+                grid: { borderColor: "#f3f4f6" },
+                tooltip: { y: { formatter: v => v + " commandes" } },
+             }).render()'></div>
     </div>
 
     {{-- Clients chart --}}
     <div class="bg-white rounded-2xl border border-gray-100 p-5">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="font-semibold text-gray-800">Nouveaux clients — 30 derniers jours</h3>
+            <h3 class="font-semibold text-gray-800">Nouveaux clients Web — 30 derniers jours</h3>
         </div>
-        <div id="clientsChart"></div>
+        <div wire:ignore
+             x-data
+             x-init='new ApexCharts($el, {
+                chart: { type: "bar", height: 200, toolbar: { show: false } },
+                series: [{ name: "Clients", data: @json($clientsChart->pluck("count")) }],
+                xaxis: { categories: @json($clientsChart->pluck("date")), labels: { rotate: -45, style: { fontSize: "10px" } } },
+                colors: ["#1B3A6B"],
+                dataLabels: { enabled: false },
+                grid: { borderColor: "#f3f4f6" },
+                plotOptions: { bar: { borderRadius: 4 } },
+                tooltip: { y: { formatter: v => v + " clients" } },
+             }).render()'></div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+    {{-- Android orders chart --}}
+    <div class="bg-white rounded-2xl border border-gray-100 p-5">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-gray-800 flex items-center gap-1.5">Commandes App Android <span>🔥</span> — 30 derniers jours</h3>
+        </div>
+        <div wire:ignore
+             x-data
+             x-init='new ApexCharts($el, {
+                chart: { type: "area", height: 200, toolbar: { show: false } },
+                series: [{ name: "Commandes", data: @json($ordersChartAndroid ?? []) }],
+                xaxis: { categories: @json($ordersChartAndroidDates ?? []), labels: { rotate: -45, style: { fontSize: "10px" } } },
+                colors: ["#f97316"],
+                fill: { type: "gradient", gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05 } },
+                stroke: { curve: "smooth", width: 2 },
+                dataLabels: { enabled: false },
+                grid: { borderColor: "#f3f4f6" },
+                tooltip: { y: { formatter: v => v + " commandes" } },
+             }).render()'></div>
+    </div>
+
+    {{-- Android clients chart --}}
+    <div class="bg-white rounded-2xl border border-gray-100 p-5">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-gray-800 flex items-center gap-1.5">Nouveaux clients App Android <span>🔥</span> — 30 derniers jours</h3>
+        </div>
+        <div wire:ignore
+             x-data
+             x-init='new ApexCharts($el, {
+                chart: { type: "bar", height: 200, toolbar: { show: false } },
+                series: [{ name: "Clients", data: @json($clientsChartAndroid ?? []) }],
+                xaxis: { categories: @json($clientsChartAndroidDates ?? []), labels: { rotate: -45, style: { fontSize: "10px" } } },
+                colors: ["#a855f7"],
+                dataLabels: { enabled: false },
+                grid: { borderColor: "#f3f4f6" },
+                plotOptions: { bar: { borderRadius: 4 } },
+                tooltip: { y: { formatter: v => v + " clients" } },
+             }).render()'></div>
     </div>
 </div>
 
@@ -112,38 +176,3 @@
     </div>
 </div>
 @endsection
-
-@push('scripts')
-<script>
-// Orders chart data
-const orderDates = @json($ordersChart->pluck('date'));
-const orderCounts = @json($ordersChart->pluck('count'));
-
-new ApexCharts(document.getElementById('ordersChart'), {
-    chart: { type: 'area', height: 200, toolbar: { show: false }, sparkline: { enabled: false } },
-    series: [{ name: 'Commandes', data: orderCounts }],
-    xaxis: { categories: orderDates, labels: { rotate: -45, style: { fontSize: '10px' } } },
-    colors: ['#E63B2E'],
-    fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05 } },
-    stroke: { curve: 'smooth', width: 2 },
-    dataLabels: { enabled: false },
-    grid: { borderColor: '#f3f4f6' },
-    tooltip: { y: { formatter: v => v + ' commandes' } },
-}).render();
-
-// Clients chart data
-const clientDates = @json($clientsChart->pluck('date'));
-const clientCounts = @json($clientsChart->pluck('count'));
-
-new ApexCharts(document.getElementById('clientsChart'), {
-    chart: { type: 'bar', height: 200, toolbar: { show: false } },
-    series: [{ name: 'Clients', data: clientCounts }],
-    xaxis: { categories: clientDates, labels: { rotate: -45, style: { fontSize: '10px' } } },
-    colors: ['#1B3A6B'],
-    dataLabels: { enabled: false },
-    grid: { borderColor: '#f3f4f6' },
-    plotOptions: { bar: { borderRadius: 4 } },
-    tooltip: { y: { formatter: v => v + ' clients' } },
-}).render();
-</script>
-@endpush

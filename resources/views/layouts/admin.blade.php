@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
     <title>@yield('title', 'Administration') — AfricSales Admin</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -38,50 +39,11 @@
 
             {{-- Section Boutique Web (MySQL) --}}
             <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 pt-4 pb-1">Boutique Web</p>
-            @php
-            $shopItems = [
-                ['href' => '/admin/products',   'icon' => 'package',      'label' => 'Produits Sheet',  'route' => 'admin.products.index'],
-                ['href' => '/admin/orders',     'icon' => 'shopping-bag', 'label' => 'Commandes Web',   'route' => 'admin.orders.index',    'badge' => $pendingOrdersWeb ?? 0],
-                ['href' => '/admin/customers',  'icon' => 'users',        'label' => 'Clients Web',     'route' => 'admin.customers.index', 'badge' => $newClientsWeb ?? 0],
-                ['href' => '/admin/web-messages','icon' => 'message-circle','label' => 'Messages Web',  'route' => 'admin.webmessages.index','badge' => $unreadMessagesWeb ?? 0],
-                ['href' => '/admin/categories', 'icon' => 'tag',          'label' => 'Catégories',      'route' => 'admin.categories.index'],
-                ['href' => '/admin/banners',    'icon' => 'image',        'label' => 'Bannières',       'route' => 'admin.banners.index'],
-                ['href' => '/admin/settings',   'icon' => 'settings-2',   'label' => 'Config boutique', 'route' => 'admin.settings.index'],
-            ];
-            @endphp
-            @foreach($shopItems as $item)
-            <a href="{{ $item['href'] }}" wire:navigate class="sidebar-link flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all {{ request()->routeIs($item['route']) ? 'active bg-[#E63B2E] text-white shadow-sm' : 'text-gray-600' }}">
-                <span class="flex items-center gap-3">
-                    <i data-lucide="{{ $item['icon'] }}" class="w-4 h-4 flex-shrink-0"></i> {{ $item['label'] }}
-                </span>
-                @if(($item['badge'] ?? 0) > 0)
-                <span class="text-[10px] font-bold min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full {{ request()->routeIs($item['route']) ? 'bg-white text-[#E63B2E]' : 'bg-[#E63B2E] text-white' }}">{{ $item['badge'] }}</span>
-                @endif
-            </a>
-            @endforeach
+            <livewire:admin.web-nav-items />
 
             {{-- Section Application Android (Firebase) --}}
             <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 pt-4 pb-1">App Android 🔥</p>
-            @php
-            $firebaseItems = [
-                ['href' => '/admin/clients',       'icon' => 'smartphone',    'label' => 'Clients Android',  'route' => 'admin.clients.index',    'badge' => $newClientsAndroid ?? 0],
-                ['href' => '/admin/commandes',     'icon' => 'clipboard-list','label' => 'Commandes Android','route' => 'admin.commandes.index',  'badge' => $pendingOrdersAndroid ?? 0],
-                ['href' => '/admin/produits',      'icon' => 'boxes',         'label' => 'Produits Firebase', 'route' => 'admin.produits.index'],
-                ['href' => '/admin/messages',      'icon' => 'message-circle','label' => 'Messages',         'route' => 'admin.messages.index',   'badge' => $unreadMessagesAndroid ?? 0],
-                ['href' => '/admin/notifications', 'icon' => 'bell',          'label' => 'Notifications',    'route' => 'admin.notifications.index'],
-                ['href' => '/admin/parametres',    'icon' => 'sliders',       'label' => 'Paramètres App',   'route' => 'admin.parametres.index'],
-            ];
-            @endphp
-            @foreach($firebaseItems as $item)
-            <a href="{{ $item['href'] }}" wire:navigate class="sidebar-link flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all {{ request()->routeIs($item['route']) ? 'active bg-[#E63B2E] text-white shadow-sm' : 'text-gray-600' }}">
-                <span class="flex items-center gap-3">
-                    <i data-lucide="{{ $item['icon'] }}" class="w-4 h-4 flex-shrink-0"></i> {{ $item['label'] }}
-                </span>
-                @if(($item['badge'] ?? 0) > 0)
-                <span class="text-[10px] font-bold min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full {{ request()->routeIs($item['route']) ? 'bg-white text-[#E63B2E]' : 'bg-[#E63B2E] text-white' }}">{{ $item['badge'] }}</span>
-                @endif
-            </a>
-            @endforeach
+            <livewire:admin.firebase-nav-items />
 
         </nav>
 
@@ -90,12 +52,7 @@
             <a href="/" target="_blank" class="flex items-center gap-2 text-xs text-gray-500 hover:text-[#E63B2E] transition-colors mb-2">
                 <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Voir la boutique
             </a>
-            <form method="POST" action="/logout">
-                @csrf
-                <button type="submit" class="flex items-center gap-2 text-xs text-gray-500 hover:text-[#E63B2E] transition-colors">
-                    <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Déconnexion
-                </button>
-            </form>
+            <livewire:admin.logout-button />
         </div>
     </aside>
 
@@ -161,6 +118,7 @@
 
     <script>document.addEventListener('DOMContentLoaded', function () { lucide.createIcons(); });</script>
     <script>document.addEventListener('livewire:navigated', function () { lucide.createIcons(); });</script>
+    <script>document.addEventListener('livewire:init', function () { Livewire.hook('morph.updated', function () { lucide.createIcons(); }); });</script>
     @stack('scripts')
     @livewireScripts
 </body>

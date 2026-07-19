@@ -3,8 +3,54 @@
 @section('title', $product->nom . ' — AfricSales')
 @section('description', Str::limit($product->description, 160))
 @section('og_image', $product->image_url ? '/image-proxy?url=' . urlencode($product->image_url) : '')
+@section('og_type', 'product')
 
 @section('content')
+@php
+    $jsonLdImages = collect($product->gallery_images)
+        ->map(fn($img) => url('/image-proxy?url=' . urlencode($img)))
+        ->values()
+        ->all();
+
+    $productJsonLd = [
+        '@context'    => 'https://schema.org',
+        '@type'       => 'Product',
+        'name'        => $product->nom,
+        'description' => Str::limit(strip_tags((string) $product->description), 500) ?: $product->nom,
+        'image'       => $jsonLdImages ?: [url('/images/placeholder.png')],
+        'sku'         => (string) $product->id,
+        'brand'       => ['@type' => 'Brand', 'name' => $product->marque ?: 'AfricSales'],
+        'offers'      => [
+            '@type'         => 'Offer',
+            'url'           => url('/products/' . $product->id),
+            'priceCurrency' => 'XOF',
+            'price'         => number_format($product->display_price, 2, '.', ''),
+            'availability'  => $product->is_out_of_stock ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
+        ],
+    ];
+    if ($product->category) {
+        $productJsonLd['category'] = $product->category->nom;
+    }
+
+    $breadcrumbJsonLd = [
+        '@context'        => 'https://schema.org',
+        '@type'           => 'BreadcrumbList',
+        'itemListElement' => array_values(array_filter([
+            ['@type' => 'ListItem', 'position' => 1, 'name' => 'Accueil', 'item' => url('/')],
+            ['@type' => 'ListItem', 'position' => 2, 'name' => 'Catégorie', 'item' => url('/products')],
+            $product->category ? [
+                '@type'    => 'ListItem',
+                'position' => 3,
+                'name'     => $product->category->nom,
+                'item'     => url('/products?category=' . $product->category->slug),
+            ] : null,
+            ['@type' => 'ListItem', 'position' => $product->category ? 4 : 3, 'name' => $product->nom, 'item' => url('/products/' . $product->id)],
+        ])),
+    ];
+@endphp
+<script type="application/ld+json">@json($productJsonLd, JSON_UNESCAPED_UNICODE)</script>
+<script type="application/ld+json">@json($breadcrumbJsonLd, JSON_UNESCAPED_UNICODE)</script>
+
 <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
 
     {{-- Back button + Breadcrumb --}}
@@ -27,12 +73,46 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
 
-        {{-- Image --}}
-        <div class="aspect-square bg-gray-50 rounded-2xl overflow-hidden">
-            <img src="{{ $product->image_url ? '/image-proxy?url=' . urlencode($product->image_url) : '/images/placeholder.png' }}"
-                 alt="{{ $product->nom }}"
-                 loading="eager"
-                 class="w-full h-full object-cover object-center">
+        {{-- Images --}}
+        @php
+            $gallery = $product->gallery_images;
+            $mainImage = $gallery[0] ?? null;
+        @endphp
+        <div x-data="{ image: @js($mainImage ? '/image-proxy?url=' . urlencode($mainImage) : '/images/placeholder.png') }">
+            <div class="aspect-square bg-gray-50 rounded-2xl overflow-hidden">
+                <img :src="image"
+                     alt="{{ $product->nom }}{{ $product->category?->nom ? ' - ' . $product->category->nom : '' }} - AfricSales"
+                     loading="eager"
+                     class="w-full h-full object-cover object-center">
+            </div>
+
+            @if(count($gallery) > 1)
+            <div class="grid grid-cols-5 sm:grid-cols-6 gap-2 mt-3">
+                @foreach($gallery as $imageUrl)
+                @php $proxied = '/image-proxy?url=' . urlencode($imageUrl); @endphp
+                <button type="button" @click="image = @js($proxied)"
+                        class="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-[#E63B2E] transition-colors">
+                    <img src="{{ $proxied }}" alt="{{ $product->nom }}" loading="lazy" class="w-full h-full object-cover">
+                </button>
+                @endforeach
+            </div>
+            @endif
+
+            @if($variants->count() > 0)
+            <div class="mt-5">
+                <h2 class="text-sm font-semibold text-gray-800 mb-2">Images par couleur</h2>
+                <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    @foreach($variants as $variant)
+                    <a href="/products/{{ $variant->id }}" class="group block">
+                        <div class="aspect-square rounded-lg overflow-hidden border border-gray-200 group-hover:border-[#E63B2E] transition-colors">
+                            <img src="{{ $variant->image_src }}" alt="{{ $variant->color ?: $variant->nom }}" loading="lazy" class="w-full h-full object-cover">
+                        </div>
+                        <p class="mt-1 text-xs text-gray-600 truncate">{{ $variant->color ?: 'Couleur' }}</p>
+                    </a>
+                    @endforeach
+                </div>
+            </div>
+            @endif
         </div>
 
         {{-- Info --}}
@@ -47,7 +127,7 @@
 
             {{-- Price --}}
             <div class="flex items-center gap-3 mb-5">
-                <span class="text-3xl font-bold text-gray-900">{{ number_format($product->prix, 0, ',', ' ') }} FCFA</span>
+                <span class="text-3xl font-bold text-gray-900">{{ number_format($product->display_price, 0, ',', ' ') }} FCFA</span>
                 @if($product->prix_original)
                 <span class="text-lg text-gray-400 line-through">{{ number_format($product->prix_original, 0, ',', ' ') }}</span>
                 <span class="bg-[#E63B2E] text-white text-sm font-bold px-2.5 py-0.5 rounded-lg">-{{ $product->discount_percent }}%</span>
@@ -56,7 +136,11 @@
 
             {{-- Stock --}}
             <div class="flex items-center gap-2 mb-6">
-                @if($product->stock > 10)
+                @if($product->is_out_of_stock)
+                <span class="flex items-center gap-1.5 text-[#E63B2E] text-sm font-medium">
+                    <i data-lucide="x-circle" class="w-4 h-4"></i> Rupture de stock
+                </span>
+                @elseif($product->stock > 10)
                 <span class="flex items-center gap-1.5 text-green-600 text-sm font-medium">
                     <i data-lucide="check-circle-2" class="w-4 h-4"></i> En stock ({{ $product->stock }} disponibles)
                 </span>
@@ -71,6 +155,31 @@
                 @endif
             </div>
 
+            {{-- Sheet details --}}
+            <div class="border-t border-gray-100 pt-5 mb-6">
+                <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3 text-sm">
+                    @foreach([
+                        'Price' => ($product->prix_original ?: $product->prix) ? number_format($product->prix_original ?: $product->prix, 0, ',', ' ') . ' FCFA' : null,
+                        'MOQ' => $product->moq,
+                        'Discounted Price' => $product->discounted_price ? number_format($product->discounted_price, 0, ',', ' ') . ' FCFA' : null,
+                        'Description' => $product->description,
+                        'Marque' => $product->marque,
+                        'Size' => $product->size,
+                        'Color' => $product->color,
+                        'Model' => $product->model,
+                        'Stock' => (string) $product->stock,
+                        'Availability' => ucfirst($product->availability ?? 'show'),
+                    ] as $label => $value)
+                    @if(filled($value))
+                    <div>
+                        <dt class="text-xs font-semibold uppercase text-gray-400">{{ $label }}</dt>
+                        <dd class="mt-0.5 text-gray-800">{{ $value }}</dd>
+                    </div>
+                    @endif
+                    @endforeach
+                </dl>
+            </div>
+
             {{-- Description --}}
             @if($product->description)
             <div class="prose prose-sm max-w-none text-gray-600 mb-6 leading-relaxed border-t border-gray-100 pt-5">
@@ -78,11 +187,8 @@
             </div>
             @endif
 
-            @if($product->stock > 0)
-            <form method="POST" action="/cart/add" class="space-y-3">
-                @csrf
-                <input type="hidden" name="product_id" value="{{ $product->id }}">
-
+            @if($product->is_purchasable)
+            <div class="space-y-3">
                 {{-- Qty selector --}}
                 <div class="flex items-center gap-3">
                     <span class="text-sm font-medium text-gray-700">Quantité :</span>
@@ -91,7 +197,7 @@
                                 class="w-10 h-10 flex items-center justify-center hover:bg-gray-50 transition-colors text-gray-600">
                             <i data-lucide="minus" class="w-4 h-4"></i>
                         </button>
-                        <input type="number" name="quantite" x-model="qty" min="1" max="{{ $product->stock }}"
+                        <input type="number" x-model="qty" min="1" max="{{ $product->stock }}"
                                class="w-14 text-center text-sm font-semibold border-x border-gray-200 h-10 focus:outline-none">
                         <button type="button" @click="qty = Math.min({{ $product->stock }}, qty + 1)"
                                 class="w-10 h-10 flex items-center justify-center hover:bg-gray-50 transition-colors text-gray-600">
@@ -101,10 +207,9 @@
                 </div>
 
                 <div class="flex gap-3">
-                    <button type="submit"
-                            class="flex-1 bg-[#E63B2E] hover:bg-[#CC2F23] text-white py-3.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2">
-                        <i data-lucide="shopping-cart" class="w-4 h-4"></i> Ajouter au panier
-                    </button>
+                    <div class="flex-1">
+                        <livewire:client.add-to-cart-button :product="$product" :key="'cart-btn-'.$product->id" />
+                    </div>
                     @auth
                     <form method="POST" action="/wishlist/toggle/{{ $product->id }}">
                         @csrf
@@ -120,7 +225,7 @@
                     </a>
                     @endauth
                 </div>
-            </form>
+            </div>
             @else
             <button disabled class="w-full bg-gray-100 text-gray-400 py-3.5 rounded-xl font-semibold text-sm cursor-not-allowed">
                 Produit indisponible
