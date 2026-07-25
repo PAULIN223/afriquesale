@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
@@ -31,6 +32,14 @@ class ProductController extends Controller
         if ($request->filled('prix_max')) {
             $query->where('prix', '<=', $request->prix_max);
         }
+
+        // Un même produit est parfois importé sur plusieurs lignes du CSV (une par couleur/modèle).
+        // On ne garde qu'un seul représentant par produit (celui avec une image, sinon le plus ancien).
+        $representativeIds = (clone $query)
+            ->select('nom', 'category_id', DB::raw("SUBSTRING_INDEX(GROUP_CONCAT(id ORDER BY (image_url IS NULL) ASC, id ASC), ',', 1) as id"))
+            ->groupBy('nom', 'category_id')
+            ->pluck('id');
+        $query->whereIn('id', $representativeIds);
 
         $sort = $request->get('sort', 'newest');
         match ($sort) {
