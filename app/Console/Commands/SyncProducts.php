@@ -17,7 +17,7 @@ class SyncProducts extends Command
         {--cache-images : Télécharger les images pendant la synchronisation}';
     protected $description = 'Synchronise les produits depuis Google Sheets';
 
-    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQIbdJepesl5mrGKnfYeP1zDcCHxUR6lYOnSvBRN2Z8nbgIG2oJOkrFhnxwDmUWXcFI22WYjYFS8u6O/pub?output=csv';
+    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZX3dHS4bosZCaR9inIxqlECkfYHa1NMGY7dvGCFvgMGfJiirHy44eZf_ezB1VDalFFiLlD7Zsv-nL/pub?output=csv';
 
     // Positions connues du CSV Google Sheets AfricSales
     const COL = [
@@ -43,7 +43,7 @@ class SyncProducts extends Command
         $this->info('Téléchargement du fichier CSV...');
 
         try {
-            $response = Http::timeout(30)
+            $response = Http::timeout(120)
                 ->withHeaders([
                     'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                     'Accept'     => 'text/csv,text/plain,*/*',
