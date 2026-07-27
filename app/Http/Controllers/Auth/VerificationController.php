@@ -7,6 +7,7 @@ use App\Mail\VerificationCode;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class VerificationController extends Controller
@@ -72,6 +73,10 @@ class VerificationController extends Controller
         try {
             Mail::to($user->email)->send(new VerificationCode($user, $code));
         } catch (\Exception $e) {
+            Log::error('Échec envoi email vérification (resend)', [
+                'email' => $user->email,
+                'error' => $e->getMessage(),
+            ]);
             return back()->withErrors(['code' => 'Impossible d\'envoyer l\'email. Réessayez plus tard.']);
         }
 

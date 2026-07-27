@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\VerificationController;
@@ -38,6 +39,12 @@ Route::middleware('guest')->group(function () {
     Route::get('/login',    LoginForm::class)->name('login');
     Route::get('/register', [RegisterController::class, 'showForm'])->name('register');
     Route::post('/register',[RegisterController::class, 'register']);
+
+    Route::get('/mot-de-passe-oublie',           [ForgotPasswordController::class, 'showForm'])->name('password.request');
+    Route::post('/mot-de-passe-oublie',          [ForgotPasswordController::class, 'send'])->name('password.send');
+    Route::post('/mot-de-passe-oublie/renvoyer', [ForgotPasswordController::class, 'resend'])->name('password.resend');
+    Route::get('/reinitialiser-mot-de-passe',    [ForgotPasswordController::class, 'showResetForm'])->name('password.reset');
+    Route::post('/reinitialiser-mot-de-passe',   [ForgotPasswordController::class, 'reset'])->name('password.update');
 });
 
 // Email verification (not fully authed)

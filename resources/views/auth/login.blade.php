@@ -28,7 +28,7 @@
     <div>
         <div class="flex justify-between mb-1.5">
             <label class="text-sm font-medium text-gray-700">Mot de passe</label>
-            <a href="#" class="text-xs text-[#E63B2E] hover:underline">Mot de passe oublié ?</a>
+            <a href="/mot-de-passe-oublie" class="text-xs text-[#E63B2E] hover:underline">Mot de passe oublié ?</a>
         </div>
         <div class="relative" x-data="{ show: false }">
             <i data-lucide="lock" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
