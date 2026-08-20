@@ -32,15 +32,22 @@
             <h3 class="font-bold text-gray-800 mb-4">Articles commandés</h3>
             <div class="divide-y divide-gray-50">
                 @foreach($order->items as $item)
-                <div class="flex gap-3 py-3">
-                    <img src="{{ $item->product->image_url ? '/image-proxy?url=' . urlencode($item->product->image_url) : '/images/placeholder.png' }}"
-                         alt="{{ $item->product->nom }}" loading="lazy"
+                <div class="flex gap-3 py-3 items-center">
+                    <img src="{{ $item->image_src }}"
+                         alt="{{ $item->display_name }}" loading="lazy"
                          class="w-14 h-14 object-cover rounded-xl flex-shrink-0">
-                    <div class="flex-1">
-                        <p class="font-medium text-gray-800 text-sm">{{ $item->product->nom }}</p>
-                        <p class="text-xs text-gray-400">{{ number_format($item->prix_unitaire, 0, ',', ' ') }} FCFA × {{ $item->quantite }}</p>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium text-gray-800 text-sm truncate">{{ $item->display_name }}</p>
+                        <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <p class="text-xs text-gray-400">{{ number_format($item->prix_unitaire, 0, ',', ' ') }} FCFA × {{ $item->quantite }}</p>
+                            @if(filled($item->product_color))
+                            <span class="inline-flex items-center text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                Couleur : {{ $item->product_color }}
+                            </span>
+                            @endif
+                        </div>
                     </div>
-                    <span class="font-bold text-gray-900 text-sm">{{ number_format($item->subtotal, 0, ',', ' ') }} FCFA</span>
+                    <span class="font-bold text-gray-900 text-sm flex-shrink-0">{{ number_format($item->subtotal, 0, ',', ' ') }} FCFA</span>
                 </div>
                 @endforeach
             </div>

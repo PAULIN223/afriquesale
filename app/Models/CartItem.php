@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class CartItem extends Model
 {
-    protected $fillable = ['user_id', 'product_id', 'quantite'];
+    protected $fillable = ['user_id', 'product_id', 'quantite', 'color', 'color_image_url'];
 
     protected $casts = ['quantite' => 'integer'];
 
@@ -22,6 +22,8 @@ class CartItem extends Model
 
     public function getSubtotalAttribute(): float
     {
-        return $this->product->prix * $this->quantite;
+        $unitPrice = $this->product ? ($this->product->display_price ?? $this->product->prix ?? 0) : 0;
+
+        return $unitPrice * $this->quantite;
     }
 }

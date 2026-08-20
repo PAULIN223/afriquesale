@@ -102,6 +102,7 @@ class SyncProducts extends Command
 
             // Nom
             $nom = $this->col($row, $colMap['nom']);
+            $productCode = $this->normalizeProductCode($this->col($row, $colMap['code']), $nom);
             // Nettoyer le code produit en fin de nom : "SAC DAME: AS_07002" → "SAC DAME"
             $nom = trim(preg_replace('/\s*:\s*[A-Z0-9_]{4,}$/', '', $nom));
             if (empty($nom)) { $skipped++; continue; }
@@ -157,6 +158,7 @@ class SyncProducts extends Command
                 'image_urls'    => $imageUrls ?: null,
                 'category_id'   => $category->id,
                 'categorie'     => $categorieName,
+                'product_code'  => $productCode,
                 'stock'         => $availability === 'out of stock' ? 0 : $stock,
                 'availability'  => $availability,
                 'actif'         => $actif,
@@ -185,6 +187,7 @@ class SyncProducts extends Command
                         'prix_original' => $productData['prix_original'],
                         'discounted_price' => $productData['discounted_price'],
                         'categorie'     => $productData['categorie'],
+                        'product_code'  => $productData['product_code'],
                         'description'   => $productData['description'],
                         'moq'           => $productData['moq'],
                         'marque'        => $productData['marque'],
@@ -251,6 +254,17 @@ class SyncProducts extends Command
     private function col(array $row, int $index): string
     {
         return isset($row[$index]) ? trim($row[$index]) : '';
+    }
+
+    private function normalizeProductCode(string $rawCode, string $rawName): ?string
+    {
+        $code = trim($rawCode);
+
+        if ($code === '' && preg_match('/:\s*([A-Z0-9_]{4,})\s*$/i', $rawName, $matches)) {
+            $code = $matches[1];
+        }
+
+        return $code !== '' ? strtoupper($code) : null;
     }
 
     /**

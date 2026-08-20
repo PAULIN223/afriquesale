@@ -30,15 +30,22 @@
             @foreach($cartItems as $item)
             <div class="bg-white rounded-2xl border border-gray-100 p-4 flex gap-4 items-start">
                 <a href="/products/{{ $item->product->id }}" class="flex-shrink-0">
-                    <img src="{{ $item->product->image_url ? '/image-proxy?url=' . urlencode($item->product->image_url) : '/images/placeholder.png' }}"
-                         alt="{{ $item->product->nom }}" loading="lazy"
+                    <img src="{{ ($item->color_image_url ?: $item->product->image_url) ? '/image-proxy?url=' . urlencode($item->color_image_url ?: $item->product->image_url) : '/images/placeholder.png' }}"
+                         alt="{{ $item->product->display_name }}" loading="lazy"
                          class="w-20 h-20 object-cover rounded-xl">
                 </a>
                 <div class="flex-1 min-w-0">
                     <a href="/products/{{ $item->product->id }}" class="font-semibold text-gray-800 text-sm hover:text-[#E63B2E] transition-colors line-clamp-2">
-                        {{ $item->product->nom }}
+                        {{ $item->product->display_name }}
                     </a>
-                    <p class="text-xs text-gray-400 mt-0.5">{{ $item->product->category?->nom }}</p>
+                    <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span class="text-xs text-gray-400">{{ $item->product->category?->nom }}</span>
+                        @if(filled($item->color))
+                        <span class="inline-flex items-center text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                            Couleur : {{ $item->color }}
+                        </span>
+                        @endif
+                    </div>
                     <div class="flex items-center justify-between mt-3 flex-wrap gap-2">
                         {{-- Qty --}}
                         <form method="POST" action="/cart/update" class="flex items-center border border-gray-200 rounded-xl overflow-hidden">

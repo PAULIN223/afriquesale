@@ -6,13 +6,12 @@ use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Product::actif()->with('category');
+        $query = Product::actif()->with(['category', 'variants']);
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -34,10 +33,10 @@ class ProductController extends Controller
         }
 
         // Un même produit est parfois importé sur plusieurs lignes du CSV (une par couleur/modèle).
-        // On ne garde qu'un seul représentant par produit (celui avec une image, sinon le plus ancien).
+        // On ne garde qu'un seul représentant par code article (celui avec une image, sinon le plus ancien).
         $representativeIds = (clone $query)
-            ->select('nom', 'category_id', DB::raw("SUBSTRING_INDEX(GROUP_CONCAT(id ORDER BY (image_url IS NULL) ASC, id ASC), ',', 1) as id"))
-            ->groupBy('nom', 'category_id')
+            ->selectRaw("SUBSTRING_INDEX(GROUP_CONCAT(id ORDER BY (image_url IS NULL) ASC, id ASC), ',', 1) as id")
+            ->groupByRaw("COALESCE(NULLIF(product_code, ''), CONCAT(nom, '#', COALESCE(category_id, '')))")
             ->pluck('id');
         $query->whereIn('id', $representativeIds);
 
@@ -77,13 +76,19 @@ class ProductController extends Controller
     public function show(int $id)
     {
         $product = Product::actif()->with('category')->findOrFail($id);
+
         $variants = Product::actif()
-            ->where('id', '!=', $product->id)
-            ->when($product->model, fn($q) => $q->where('model', $product->model))
-            ->when(!$product->model, fn($q) => $q->where('nom', $product->nom))
-            ->where(function ($q) {
-                $q->whereNotNull('image_url')->orWhereNotNull('image_urls');
+            ->inVariantGroup($product)
+            ->where(function ($q) use ($product) {
+                $q->where(function ($q) {
+                    $q->whereNotNull('image_url')->orWhereNotNull('image_urls');
+                });
+
+                if (!filled($product->product_code)) {
+                    $q->whereNotNull('color');
+                }
             })
+            ->orderByRaw('color IS NULL')
             ->orderBy('color')
             ->take(12)
             ->get();
@@ -92,6 +97,7 @@ class ProductController extends Controller
             ->where('id', '!=', $product->id)
             ->where('category_id', $product->category_id)
             ->whereNotNull('image_url')
+            ->with(['category', 'variants'])
             ->take(8)->get();
 
         $inWishlist = false;

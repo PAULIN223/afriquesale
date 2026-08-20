@@ -71,16 +71,30 @@
         </nav>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+    @php
+        $gallery = $product->gallery_images;
+        $mainImage = $gallery[0] ?? null;
+    @endphp
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-10"
+         x-data="{
+             activeId: {{ $variants->count() > 1 ? 'null' : $product->id }},
+             activeName: '{{ addslashes($product->nom) }}',
+             activePrice: {{ $product->display_price }},
+             activeOriginalPrice: {{ $product->prix_original ?: 'null' }},
+             activeDiscountPercent: {{ $product->discount_percent ?: 'null' }},
+             activeStock: {{ $variants->count() > 1 ? 0 : $product->stock }},
+             activeImage: '{{ $mainImage ? '/image-proxy?url=' . urlencode($mainImage) : '/images/placeholder.png' }}',
+             activeColor: '{{ $variants->count() > 1 ? '' : addslashes($product->color) }}',
+             isOutOfStock: {{ $variants->count() > 1 ? 'false' : ($product->is_out_of_stock ? 'true' : 'false') }},
+             isPurchasable: {{ $variants->count() > 1 ? 'false' : ($product->is_purchasable ? 'true' : 'false') }},
+             qty: 1
+         }">
 
         {{-- Images --}}
-        @php
-            $gallery = $product->gallery_images;
-            $mainImage = $gallery[0] ?? null;
-        @endphp
-        <div x-data="{ image: @js($mainImage ? '/image-proxy?url=' . urlencode($mainImage) : '/images/placeholder.png') }">
+        <div>
             <div class="aspect-square bg-gray-50 rounded-2xl overflow-hidden">
-                <img :src="image"
+                <img :src="activeImage"
                      alt="{{ $product->nom }}{{ $product->category?->nom ? ' - ' . $product->category->nom : '' }} - AfricSales"
                      loading="eager"
                      class="w-full h-full object-cover object-center">
@@ -90,70 +104,93 @@
             <div class="grid grid-cols-5 sm:grid-cols-6 gap-2 mt-3">
                 @foreach($gallery as $imageUrl)
                 @php $proxied = '/image-proxy?url=' . urlencode($imageUrl); @endphp
-                <button type="button" @click="image = @js($proxied)"
+                <button type="button" @click="activeImage = @js($proxied)"
                         class="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-[#E63B2E] transition-colors">
                     <img src="{{ $proxied }}" alt="{{ $product->nom }}" loading="lazy" class="w-full h-full object-cover">
                 </button>
                 @endforeach
             </div>
             @endif
-
-            @if($variants->count() > 0)
-            <div class="mt-5">
-                <h2 class="text-sm font-semibold text-gray-800 mb-2">Images par couleur</h2>
-                <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    @foreach($variants as $variant)
-                    <a href="/products/{{ $variant->id }}" class="group block">
-                        <div class="aspect-square rounded-lg overflow-hidden border border-gray-200 group-hover:border-[#E63B2E] transition-colors">
-                            <img src="{{ $variant->image_src }}" alt="{{ $variant->color ?: $variant->nom }}" loading="lazy" class="w-full h-full object-cover">
-                        </div>
-                        <p class="mt-1 text-xs text-gray-600 truncate">{{ $variant->color ?: 'Couleur' }}</p>
-                    </a>
-                    @endforeach
-                </div>
-            </div>
-            @endif
         </div>
 
         {{-- Info --}}
-        <div x-data="{ qty: 1 }">
+        <div>
             @if($product->category)
             <span class="inline-block bg-[#E63B2E]/10 text-[#E63B2E] text-xs font-semibold px-3 py-1 rounded-full mb-3">
                 {{ $product->category->nom }}
             </span>
             @endif
 
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight mb-4">{{ $product->nom }}</h1>
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight mb-4">
+                <span x-text="activeName"></span>
+                <span class="text-gray-500 font-normal" x-show="activeColor" x-text="' - ' + activeColor"></span>
+            </h1>
 
             {{-- Price --}}
             <div class="flex items-center gap-3 mb-5">
-                <span class="text-3xl font-bold text-gray-900">{{ number_format($product->display_price, 0, ',', ' ') }} FCFA</span>
-                @if($product->prix_original)
-                <span class="text-lg text-gray-400 line-through">{{ number_format($product->prix_original, 0, ',', ' ') }}</span>
-                <span class="bg-[#E63B2E] text-white text-sm font-bold px-2.5 py-0.5 rounded-lg">-{{ $product->discount_percent }}%</span>
-                @endif
+                <span class="text-3xl font-bold text-gray-900" x-text="new Intl.NumberFormat('fr-FR').format(activePrice) + ' FCFA'"></span>
+                <span class="text-lg text-gray-400 line-through" x-show="activeOriginalPrice" x-text="new Intl.NumberFormat('fr-FR').format(activeOriginalPrice) + ' FCFA'"></span>
+                <span class="bg-[#E63B2E] text-white text-sm font-bold px-2.5 py-0.5 rounded-lg" x-show="activeOriginalPrice && activeDiscountPercent" x-text="'-' + activeDiscountPercent + '%'"></span>
             </div>
 
             {{-- Stock --}}
-            <div class="flex items-center gap-2 mb-6">
-                @if($product->is_out_of_stock)
-                <span class="flex items-center gap-1.5 text-[#E63B2E] text-sm font-medium">
+            <div class="flex items-center gap-2 mb-6" x-show="activeId !== null">
+                <span x-show="isOutOfStock" class="flex items-center gap-1.5 text-[#E63B2E] text-sm font-medium">
                     <i data-lucide="x-circle" class="w-4 h-4"></i> Rupture de stock
                 </span>
-                @elseif($product->stock > 10)
-                <span class="flex items-center gap-1.5 text-green-600 text-sm font-medium">
-                    <i data-lucide="check-circle-2" class="w-4 h-4"></i> En stock ({{ $product->stock }} disponibles)
+                <span x-show="!isOutOfStock && activeStock > 10" class="flex items-center gap-1.5 text-green-600 text-sm font-medium">
+                    <i data-lucide="check-circle-2" class="w-4 h-4"></i> En stock (<span x-text="activeStock"></span> disponibles)
                 </span>
-                @elseif($product->stock > 0)
-                <span class="flex items-center gap-1.5 text-orange-500 text-sm font-medium">
-                    <i data-lucide="alert-triangle" class="w-4 h-4"></i> Plus que {{ $product->stock }} en stock !
+                <span x-show="!isOutOfStock && activeStock > 0 && activeStock <= 10" class="flex items-center gap-1.5 text-orange-500 text-sm font-medium">
+                    <i data-lucide="alert-triangle" class="w-4 h-4"></i> Plus que <span x-text="activeStock"></span> en stock !
                 </span>
-                @else
-                <span class="flex items-center gap-1.5 text-[#E63B2E] text-sm font-medium">
-                    <i data-lucide="x-circle" class="w-4 h-4"></i> Rupture de stock
-                </span>
-                @endif
             </div>
+
+            {{-- Couleurs disponibles --}}
+            @if($variants->count() > 0)
+            <div class="border-t border-gray-100 pt-5 mb-5">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-xs font-semibold uppercase text-gray-400 tracking-wider">Couleurs disponibles</h3>
+                    <span class="text-xs font-medium text-gray-500">
+                        Sélectionnée : <span class="text-[#E63B2E] font-bold" x-text="activeColor || 'Aucune'"></span>
+                    </span>
+                </div>
+                
+                <p class="text-xs text-gray-500 mb-3">
+                    Options : <span class="font-medium text-gray-700">{{ $variants->pluck('color')->filter()->unique()->implode(', ') }}</span>
+                </p>
+                <div class="flex flex-wrap gap-3">
+                    @foreach($variants as $v)
+                    <button type="button"
+                       @click="
+                           activeId = {{ $v->id }};
+                           activePrice = {{ $v->display_price }};
+                           activeOriginalPrice = {{ $v->prix_original ?: 'null' }};
+                           activeDiscountPercent = {{ $v->discount_percent ?: 'null' }};
+                           activeStock = {{ $v->stock }};
+                           activeImage = '{{ $v->image_src }}';
+                           activeColor = '{{ addslashes($v->color) }}';
+                           isOutOfStock = {{ $v->is_out_of_stock ? 'true' : 'false' }};
+                           isPurchasable = {{ $v->is_purchasable ? 'true' : 'false' }};
+                           qty = 1;
+                       "
+                       class="group relative block w-16 h-16 rounded-xl border overflow-hidden transition-all"
+                       :class="activeId === {{ $v->id }} ? 'border-[#E63B2E] ring-2 ring-[#E63B2E]/20' : 'border-gray-200 hover:border-[#E63B2E] bg-white'">
+                        <img src="{{ $v->image_src }}" alt="{{ $v->color ?: $v->nom }}" class="w-full h-full object-cover">
+                        
+                        {{-- Overlay --}}
+                        <div class="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] py-0.5 text-center truncate px-1 font-semibold">
+                            {{ $v->color ?: 'Couleur' }}
+                        </div>
+
+                        <span x-show="activeId === {{ $v->id }}" class="absolute top-1 right-1 w-4 h-4 bg-[#E63B2E] text-white rounded-full flex items-center justify-center shadow-sm z-10">
+                            <i data-lucide="check" class="w-2.5 h-2.5"></i>
+                        </span>
+                    </button>
+                    @endforeach
+                </div>
+            </div>
+            @endif
 
             {{-- Sheet details --}}
             <div class="border-t border-gray-100 pt-5 mb-6">
@@ -187,8 +224,7 @@
             </div>
             @endif
 
-            @if($product->is_purchasable)
-            <div class="space-y-3">
+            <div class="space-y-3" x-show="activeId !== null && isPurchasable">
                 {{-- Qty selector --}}
                 <div class="flex items-center gap-3">
                     <span class="text-sm font-medium text-gray-700">Quantité :</span>
@@ -197,9 +233,9 @@
                                 class="w-10 h-10 flex items-center justify-center hover:bg-gray-50 transition-colors text-gray-600">
                             <i data-lucide="minus" class="w-4 h-4"></i>
                         </button>
-                        <input type="number" x-model="qty" min="1" max="{{ $product->stock }}"
+                        <input type="number" x-model.number="qty" min="1" :max="activeStock"
                                class="w-14 text-center text-sm font-semibold border-x border-gray-200 h-10 focus:outline-none">
-                        <button type="button" @click="qty = Math.min({{ $product->stock }}, qty + 1)"
+                        <button type="button" @click="qty = Math.min(activeStock, qty + 1)"
                                 class="w-10 h-10 flex items-center justify-center hover:bg-gray-50 transition-colors text-gray-600">
                             <i data-lucide="plus" class="w-4 h-4"></i>
                         </button>
@@ -211,14 +247,14 @@
                         <livewire:client.add-to-cart-button :product="$product" :key="'cart-btn-'.$product->id" />
                     </div>
                     @auth
-                    <form method="POST" action="/wishlist/toggle/{{ $product->id }}">
+                    <form method="POST" :action="'/wishlist/toggle/' + activeId">
                         @csrf
                         <button type="submit"
                                 class="h-full px-4 rounded-xl border {{ $inWishlist ? 'border-[#E63B2E] bg-[#E63B2E]/10 text-[#E63B2E]' : 'border-gray-200 text-gray-500 hover:border-[#E63B2E] hover:text-[#E63B2E]' }} transition-all">
                             <i data-lucide="heart" class="w-5 h-5 {{ $inWishlist ? 'fill-current' : '' }}"></i>
                         </button>
                     </form>
-                    <a href="/messages?product={{ $product->id }}" wire:navigate
+                    <a :href="'/messages?product=' + activeId" wire:navigate
                        class="h-full px-4 rounded-xl border border-gray-200 text-gray-500 hover:border-[#E63B2E] hover:text-[#E63B2E] transition-all flex items-center"
                        title="Poser une question sur ce produit">
                         <i data-lucide="message-circle" class="w-5 h-5"></i>
@@ -226,11 +262,12 @@
                     @endauth
                 </div>
             </div>
-            @else
-            <button disabled class="w-full bg-gray-100 text-gray-400 py-3.5 rounded-xl font-semibold text-sm cursor-not-allowed">
-                Produit indisponible
-            </button>
-            @endif
+
+            <div x-show="activeId === null || !isPurchasable">
+                <button disabled class="w-full bg-gray-100 text-gray-400 py-3.5 rounded-xl font-semibold text-sm cursor-not-allowed">
+                    <span x-text="activeId === null ? 'Choisissez une couleur' : 'Produit indisponible'"></span>
+                </button>
+            </div>
 
             {{-- Trust icons --}}
             <div class="mt-6 pt-5 border-t border-gray-100 grid grid-cols-3 gap-3">

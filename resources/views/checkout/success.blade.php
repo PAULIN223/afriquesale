@@ -13,11 +13,24 @@
 
         <div class="bg-gray-50 rounded-2xl p-5 text-left mb-6">
             <h3 class="font-semibold text-gray-800 mb-3">Récapitulatif de la commande</h3>
-            <div class="space-y-2">
+            <div class="divide-y divide-gray-200/50">
                 @foreach($order->items as $item)
-                <div class="flex justify-between text-sm">
-                    <span class="text-gray-600">{{ $item->product->nom }} × {{ $item->quantite }}</span>
-                    <span class="font-medium text-gray-800">{{ number_format($item->prix_unitaire * $item->quantite, 0, ',', ' ') }} FCFA</span>
+                <div class="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                    <img src="{{ $item->image_src }}" 
+                         alt="{{ $item->display_name }}"
+                         class="w-12 h-12 object-cover rounded-lg flex-shrink-0 border border-gray-150">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-800 truncate">{{ $item->display_name }}</p>
+                        <div class="flex items-center gap-2 mt-0.5">
+                            <span class="text-xs text-gray-400">Qté : {{ $item->quantite }}</span>
+                            @if(filled($item->product_color))
+                            <span class="text-[10px] font-medium text-gray-500 bg-white border border-gray-100 px-1.5 py-0.5 rounded">
+                                Couleur : {{ $item->product_color }}
+                            </span>
+                            @endif
+                        </div>
+                    </div>
+                    <span class="font-semibold text-gray-900 text-sm flex-shrink-0">{{ number_format($item->subtotal, 0, ',', ' ') }} FCFA</span>
                 </div>
                 @endforeach
             </div>

@@ -51,6 +51,91 @@ test('add to cart respects stock limit', function () {
     expect($item->quantite)->toBe(3);
 });
 
+test('selected color variant keeps the chosen color and uses the variant price in cart and order', function () {
+    Storage::fake('public');
+
+    $client = User::factory()->create(['role' => 'client', 'email_verified_at' => now()]);
+    $category = Category::create(['nom' => 'Textile', 'slug' => 'textile', 'actif' => true]);
+
+    $selectedVariant = Product::create([
+        'nom' => 'Robe en coton',
+        'description' => 'Robe en coton',
+        'prix' => 10000,
+        'discounted_price' => 8000,
+        'category_id' => $category->id,
+        'categorie' => 'Textile',
+        'product_code' => 'SKU-ROBE',
+        'color' => 'Noir',
+        'stock' => 5,
+        'actif' => true,
+        'source_row' => 'row_variant_1',
+    ]);
+
+    Livewire::actingAs($client)
+        ->test(AddToCartButton::class, ['product' => $selectedVariant])
+        ->call('add', 2, $selectedVariant->id, 'Noir');
+
+    $item = CartItem::where('user_id', $client->id)->where('product_id', $selectedVariant->id)->first();
+    expect($item)->not->toBeNull();
+    expect($item->color)->toBe('Noir');
+    expect($item->subtotal)->toBe(16000.0);
+
+    $this->actingAs($client)->post('/checkout', [
+        'nom' => 'Test Client', 'email' => 'test@test.com',
+        'phone' => '123456789', 'adresse' => 'Rue 1', 'ville' => 'Yaoundé', 'pays' => 'Cameroun',
+    ]);
+
+    $this->actingAs($client)->post('/checkout/confirmer', [
+        'preuve' => UploadedFile::fake()->create('preuve.jpg', 100, 'image/jpeg'),
+    ]);
+
+    $order = Order::where('user_id', $client->id)->first();
+    expect($order)->not->toBeNull();
+
+    $orderItem = $order->items()->first();
+    expect($orderItem->product_color)->toBe('Noir');
+    expect($orderItem->prix_unitaire)->toBe(8000.0);
+    expect((float) $order->total)->toBe(2000.0 + 16000.0);
+});
+
+test('selected color variant works when legacy products do not have a product code', function () {
+    $client = User::factory()->create(['role' => 'client', 'email_verified_at' => now()]);
+    $category = Category::create(['nom' => 'Sacs', 'slug' => 'sacs', 'actif' => true]);
+
+    $defaultProduct = Product::create([
+        'nom' => 'Sac Dame',
+        'prix' => 12000,
+        'category_id' => $category->id,
+        'categorie' => 'Sacs',
+        'stock' => 10,
+        'actif' => true,
+        'source_row' => 'row_legacy_parent',
+    ]);
+
+    $selectedVariant = Product::create([
+        'nom' => 'Sac Dame',
+        'prix' => 12000,
+        'category_id' => $category->id,
+        'categorie' => 'Sacs',
+        'color' => 'Rouge',
+        'image_url' => 'https://example.com/sac-rouge.jpg',
+        'stock' => 4,
+        'actif' => true,
+        'source_row' => 'row_legacy_red',
+    ]);
+
+    Livewire::actingAs($client)
+        ->test(AddToCartButton::class, ['product' => $defaultProduct])
+        ->call('add', 1, $selectedVariant->id, 'Rouge')
+        ->assertDispatched('cart-updated');
+
+    $item = CartItem::where('user_id', $client->id)->first();
+    expect($item)->not->toBeNull();
+    expect($item->product_id)->toBe($selectedVariant->id);
+    expect($item->color)->toBe('Rouge');
+    expect($item->color_image_url)->toBe('https://example.com/sac-rouge.jpg');
+});
+
 test('cart badge reflects current cart count', function () {
     $client  = User::factory()->create(['role' => 'client', 'email_verified_at' => now()]);
     $product = makeRtProduct();

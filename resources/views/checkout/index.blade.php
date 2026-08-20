@@ -100,14 +100,21 @@
                 <div class="divide-y divide-gray-50">
                     @foreach($cartItems as $item)
                     <div class="flex gap-3 py-3">
-                        <img src="{{ $item->product->image_url ? '/image-proxy?url=' . urlencode($item->product->image_url) : '/images/placeholder.png' }}"
-                             alt="{{ $item->product->nom }}" loading="lazy"
+                        <img src="{{ ($item->color_image_url ?: $item->product->image_url) ? '/image-proxy?url=' . urlencode($item->color_image_url ?: $item->product->image_url) : '/images/placeholder.png' }}"
+                             alt="{{ $item->product->display_name }}" loading="lazy"
                              class="w-12 h-12 object-cover rounded-lg flex-shrink-0">
                         <div class="flex-1 min-w-0">
-                            <p class="text-sm font-medium text-gray-800 line-clamp-1">{{ $item->product->nom }}</p>
-                            <p class="text-xs text-gray-400">Qté : {{ $item->quantite }}</p>
+                            <p class="text-sm font-medium text-gray-800 line-clamp-1">{{ $item->product->display_name }}</p>
+                            <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+                                <span class="text-xs text-gray-400">Qté : {{ $item->quantite }}</span>
+                                @if(filled($item->color ?: $item->product->color))
+                                <span class="inline-flex items-center text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                    Couleur : {{ $item->color ?: $item->product->color }}
+                                </span>
+                                @endif
+                            </div>
                         </div>
-                        <span class="text-sm font-semibold text-gray-900">{{ number_format($item->subtotal, 0, ',', ' ') }}</span>
+                        <span class="text-sm font-semibold text-gray-900 flex-shrink-0">{{ number_format($item->subtotal, 0, ',', ' ') }}</span>
                     </div>
                     @endforeach
                 </div>

@@ -8,13 +8,20 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Setting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class CheckoutController extends Controller
 {
     public function index()
     {
-        $cartItems = auth()->user()->cartItems()->with('product')->get();
+        $user = Auth::user();
+
+        if (! $user) {
+            return redirect('/login');
+        }
+
+        $cartItems = $user->cartItems()->with('product')->get();
 
         if ($cartItems->isEmpty()) {
             return redirect('/cart')->with('error', 'Votre panier est vide.');
@@ -24,7 +31,6 @@ class CheckoutController extends Controller
         $fraisLivraison = (float) Setting::get('frais_livraison', 2000);
         $total          = $subtotal + $fraisLivraison;
 
-        $user = auth()->user();
         $hasSavedAddress = filled($user->adresse) && filled($user->ville) && filled($user->pays) && filled($user->phone);
 
         return view('checkout.index', compact('cartItems', 'subtotal', 'fraisLivraison', 'total', 'hasSavedAddress'));
@@ -42,13 +48,19 @@ class CheckoutController extends Controller
             'notes'        => 'nullable|string|max:1000',
         ]);
 
-        $cartItems = auth()->user()->cartItems()->with('product')->get();
+        $user = Auth::user();
+
+        if (! $user) {
+            return redirect('/login');
+        }
+
+        $cartItems = $user->cartItems()->with('product')->get();
 
         if ($cartItems->isEmpty()) {
             return redirect('/cart')->with('error', 'Votre panier est vide.');
         }
 
-        auth()->user()->update([
+        $user->update([
             'phone'   => $request->phone,
             'adresse' => $request->adresse,
             'ville'   => $request->ville,
@@ -71,7 +83,13 @@ class CheckoutController extends Controller
     public function preuve()
     {
         $adresse = session('checkout.adresse_livraison');
-        $cartItems = auth()->user()->cartItems()->with('product')->get();
+        $user = Auth::user();
+
+        if (! $user) {
+            return redirect('/login');
+        }
+
+        $cartItems = $user->cartItems()->with('product')->get();
 
         if (! $adresse || $cartItems->isEmpty()) {
             return redirect('/checkout')->with('error', 'Veuillez d\'abord renseigner votre adresse de livraison.');
@@ -95,7 +113,13 @@ class CheckoutController extends Controller
         ]);
 
         $adresse = session('checkout.adresse_livraison');
-        $cartItems = auth()->user()->cartItems()->with('product')->get();
+        $user = Auth::user();
+
+        if (! $user) {
+            return redirect('/login');
+        }
+
+        $cartItems = $user->cartItems()->with('product')->get();
 
         if (! $adresse || $cartItems->isEmpty()) {
             return redirect('/checkout')->with('error', 'Votre session de commande a expiré, veuillez recommencer.');
@@ -111,7 +135,7 @@ class CheckoutController extends Controller
             $preuvePath = $request->file('preuve')->store('preuves-paiement', 'public');
 
             $order = Order::create([
-                'user_id'           => auth()->id(),
+                'user_id'           => Auth::id(),
                 'statut'            => 'en_attente',
                 'total'             => $total,
                 'frais_livraison'   => $fraisLivraison,
@@ -122,17 +146,22 @@ class CheckoutController extends Controller
             ]);
 
             foreach ($cartItems as $item) {
+                $unitPrice = $item->product?->display_price ?? $item->product?->prix ?? 0;
+
                 OrderItem::create([
-                    'order_id'      => $order->id,
-                    'product_id'    => $item->product_id,
-                    'quantite'      => $item->quantite,
-                    'prix_unitaire' => $item->product->prix,
+                    'order_id'          => $order->id,
+                    'product_id'        => $item->product_id,
+                    'product_name'      => $item->product->nom,
+                    'product_color'     => $item->color ?: $item->product->color,
+                    'product_image_url' => $item->color_image_url ?: $item->product->image_url,
+                    'quantite'          => $item->quantite,
+                    'prix_unitaire'     => $unitPrice,
                 ]);
 
                 $item->product->decrement('stock', $item->quantite);
             }
 
-            auth()->user()->cartItems()->delete();
+            Auth::user()->cartItems()->delete();
 
             Message::create([
                 'user_id'    => $order->user_id,
@@ -158,7 +187,7 @@ class CheckoutController extends Controller
     public function success(int $orderId)
     {
         $order = Order::with('items.product')
-            ->where('user_id', auth()->id())
+            ->where('user_id', Auth::id())
             ->findOrFail($orderId);
 
         return view('checkout.success', compact('order'));

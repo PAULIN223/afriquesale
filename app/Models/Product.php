@@ -11,7 +11,7 @@ class Product extends Model
         'nom', 'description', 'prix', 'prix_original', 'discounted_price',
         'moq', 'marque', 'size', 'color', 'model',
         'image_url', 'image_urls', 'image_cache_path', 'category_id',
-        'categorie', 'stock', 'availability', 'actif', 'source_row',
+        'categorie', 'product_code', 'stock', 'availability', 'actif', 'source_row',
     ];
 
     protected $casts = [
@@ -26,6 +26,14 @@ class Product extends Model
     public function category()
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function variants()
+    {
+        return $this->hasMany(Product::class, 'product_code', 'product_code')
+            ->where('actif', true)
+            ->whereNotNull('product_code')
+            ->where('product_code', '!=', '');
     }
 
     public function orderItems()
@@ -67,6 +75,11 @@ class Product extends Model
         return $this->discounted_price ?: $this->prix;
     }
 
+    public function getDisplayNameAttribute(): string
+    {
+        return trim($this->nom . (filled($this->color) ? ' - ' . $this->color : ''));
+    }
+
     public function getIsOutOfStockAttribute(): bool
     {
         return strtolower((string) $this->availability) === 'out of stock' || $this->stock <= 0;
@@ -97,5 +110,82 @@ class Product extends Model
     public function scopeInStock(Builder $query): Builder
     {
         return $query->where('stock', '>', 0);
+    }
+
+    public function scopeInVariantGroup(Builder $query, Product $product): Builder
+    {
+        if (filled($product->product_code)) {
+            return $query->where('product_code', $product->product_code);
+        }
+
+        $sourceRowNumber = $product->source_row_number;
+
+        if ($sourceRowNumber !== null) {
+            $bounds = $product->legacyVariantRowBounds();
+            $rows = array_map(
+                fn (int $row) => 'row_' . $row,
+                range($bounds['start'], $bounds['end'])
+            );
+
+            return $query
+                ->where('nom', $product->nom)
+                ->where('category_id', $product->category_id)
+                ->whereIn('source_row', $rows);
+        }
+
+        return $query
+            ->where('nom', $product->nom)
+            ->where('category_id', $product->category_id);
+    }
+
+    public function getSourceRowNumberAttribute(): ?int
+    {
+        return preg_match('/^row_(\d+)$/', (string) $this->source_row, $matches)
+            ? (int) $matches[1]
+            : null;
+    }
+
+    public function legacyVariantRowBounds(): array
+    {
+        $sourceRowNumber = $this->source_row_number;
+
+        if ($sourceRowNumber === null) {
+            return ['start' => 0, 'end' => 0];
+        }
+
+        $siblings = self::query()
+            ->where('nom', $this->nom)
+            ->where('category_id', $this->category_id)
+            ->get(['source_row', 'color'])
+            ->map(function (Product $product) {
+                return [
+                    'row' => $product->source_row_number,
+                    'color' => $product->color,
+                ];
+            })
+            ->filter(fn (array $product) => $product['row'] !== null)
+            ->sortBy('row')
+            ->values();
+
+        $start = $sourceRowNumber;
+
+        if (filled($this->color)) {
+            $previousBase = $siblings
+                ->filter(fn (array $product) => $product['row'] < $sourceRowNumber && !filled($product['color']))
+                ->sortByDesc('row')
+                ->first();
+
+            if ($previousBase) {
+                $start = $previousBase['row'];
+            }
+        }
+
+        $nextBase = $siblings
+            ->filter(fn (array $product) => $product['row'] > $start && !filled($product['color']))
+            ->first();
+
+        $end = $nextBase ? $nextBase['row'] - 1 : $start + 50;
+
+        return ['start' => $start, 'end' => max($start, min($end, $start + 50))];
     }
 }

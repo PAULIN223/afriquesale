@@ -21,8 +21,14 @@ class CartController extends Controller
 
     public function add(Request $request)
     {
-        $request->validate(['product_id' => 'required|exists:products,id', 'quantite' => 'integer|min:1']);
+        $request->validate([
+            'product_id' => 'required|exists:products,id',
+            'quantite' => 'integer|min:1',
+            'color' => 'nullable|string|max:100',
+        ]);
+
         $product = Product::findOrFail($request->product_id);
+        $selectedColor = trim((string) $request->input('color', $product->color));
 
         if (!auth()->check()) {
             return redirect('/login')->with('intended', '/cart');
@@ -34,16 +40,23 @@ class CartController extends Controller
 
         $cartItem = CartItem::where('user_id', auth()->id())
             ->where('product_id', $product->id)
+            ->where('color', $selectedColor !== '' ? $selectedColor : $product->color)
             ->first();
 
         if ($cartItem) {
             $newQty = $cartItem->quantite + ($request->quantite ?? 1);
-            $cartItem->update(['quantite' => min($newQty, $product->stock)]);
+            $cartItem->update([
+                'quantite' => min($newQty, $product->stock),
+                'color' => $selectedColor !== '' ? $selectedColor : $product->color,
+                'color_image_url' => $product->image_url,
+            ]);
         } else {
             CartItem::create([
-                'user_id'    => auth()->id(),
-                'product_id' => $product->id,
-                'quantite'   => min($request->quantite ?? 1, $product->stock),
+                'user_id'         => auth()->id(),
+                'product_id'      => $product->id,
+                'quantite'        => min($request->quantite ?? 1, $product->stock),
+                'color'           => $selectedColor !== '' ? $selectedColor : $product->color,
+                'color_image_url' => $product->image_url,
             ]);
         }
 
