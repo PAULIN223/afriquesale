@@ -42,22 +42,44 @@ class OrderController extends Controller
         $order = Order::findOrFail($id);
         abort_unless(filled($order->preuve_paiement), 404);
 
-        $path = ltrim(str_replace('\\', '/', $order->preuve_paiement), '/');
-        if (str_starts_with($path, 'storage/')) {
-            $path = substr($path, strlen('storage/'));
+        $storedValue = str_replace('\\', '/', $order->preuve_paiement);
+        $path = parse_url($storedValue, PHP_URL_PATH) ?: $storedValue;
+        $path = ltrim($path, '/');
+        foreach (['storage/', 'public/'] as $prefix) {
+            if (str_starts_with($path, $prefix)) {
+                $path = substr($path, strlen($prefix));
+            }
         }
         abort_if(collect(explode('/', $path))->contains('..'), 404);
 
         $disk = Storage::disk('public');
         if ($disk->exists($path)) {
-            return response()->file($disk->path($path));
+            return $disk->response($path, basename($path));
         }
 
-        // Older deployments may have written files directly under public/storage.
-        $legacyPath = public_path('storage/' . $path);
-        abort_unless(is_file($legacyPath), 404);
+        $localDisk = Storage::disk('local');
+        if ($localDisk->exists($path)) {
+            return $localDisk->response($path, basename($path));
+        }
 
-        return response()->file($legacyPath);
+        // Earlier deployments may have used a different local storage root.
+        $filename = basename($path);
+        $legacyPaths = [
+            public_path('storage/' . $path),
+            storage_path('app/public/' . $path),
+            storage_path('app/' . $path),
+            public_path('storage/preuves-paiement/' . $filename),
+            storage_path('app/public/preuves-paiement/' . $filename),
+            storage_path('app/preuves-paiement/' . $filename),
+        ];
+
+        foreach (array_unique($legacyPaths) as $legacyPath) {
+            if (is_file($legacyPath)) {
+                return response()->file($legacyPath);
+            }
+        }
+
+        abort(404, 'Le fichier de preuve associé à cette commande est absent du stockage du serveur.');
     }
 
     public function updateStatut(Request $request, int $id)

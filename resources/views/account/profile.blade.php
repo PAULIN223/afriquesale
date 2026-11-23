@@ -35,7 +35,8 @@
                 <i data-lucide="check-circle" class="w-4 h-4"></i> {{ session('success') }}
             </div>
             @endif
-            <form method="POST" action="/account/profile" class="space-y-4">
+            <form method="POST" action="/account/profile" class="space-y-4"
+                  x-data="{ countryCode: '{{ $countryCode }}', dial: '+{{ $countries[$countryCode]['dial'] }}', syncCountry(event) { this.countryCode = event.target.value; this.dial = event.target.selectedOptions[0].dataset.dial; } }">
                 @csrf
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1.5">Nom complet *</label>
@@ -49,13 +50,31 @@
                            class="w-full border border-gray-100 rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-400 cursor-not-allowed">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Téléphone</label>
-                    <input type="tel" name="phone" value="{{ old('phone', $user->phone) }}"
-                           class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E63B2E]">
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Pays et téléphone</label>
+                    <div class="flex">
+                        <select name="country_code" x-model="countryCode" required @change="syncCountry($event)"
+                                class="w-2/5 border border-gray-200 rounded-l-xl px-2 py-2.5 text-sm focus:outline-none focus:border-[#E63B2E]">
+                            @foreach($countries as $code => $country)
+                            <option value="{{ $code }}" data-dial="+{{ $country['dial'] }}" {{ $countryCode === $code ? 'selected' : '' }}>
+                                {{ $country['name'] }} (+{{ $country['dial'] }})
+                            </option>
+                            @endforeach
+                        </select>
+                        <span x-text="dial" class="border-y border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-600 flex items-center"></span>
+                        <input type="tel" name="phone_local" value="{{ old('phone_local', $phoneLocal) }}"
+                               placeholder="Numéro de téléphone"
+                               class="min-w-0 flex-1 border border-gray-200 rounded-r-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#E63B2E]">
+                    </div>
+                    @error('phone_local')<p class="text-xs text-[#E63B2E] mt-1">{{ $message }}</p>@enderror
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1.5">Adresse</label>
                     <input type="text" name="adresse" value="{{ old('adresse', $user->adresse) }}"
+                           class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E63B2E]">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Ville</label>
+                    <input type="text" name="ville" value="{{ old('ville', $user->ville) }}"
                            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E63B2E]">
                 </div>
                 <div class="border-t border-gray-100 pt-4">

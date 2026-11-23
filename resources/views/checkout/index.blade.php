@@ -37,7 +37,9 @@
                 </div>
                 @endif
 
-                <div class="grid grid-cols-2 gap-4" x-show="editing" @if($hasSavedAddress) x-cloak @endif>
+                <div class="grid grid-cols-2 gap-4"
+                     x-data="{ countryCode: '{{ $countryCode }}', dial: '+{{ $countries[$countryCode]['dial'] }}', syncCountry(event) { this.countryCode = event.target.value; this.dial = event.target.selectedOptions[0].dataset.dial; } }"
+                     x-show="editing" @if($hasSavedAddress) x-cloak @endif>
                     <div class="col-span-2">
                         <label class="block text-sm font-medium text-gray-700 mb-1.5">Nom complet *</label>
                         <input type="text" name="nom" value="{{ old('nom', auth()->user()->name) }}" required
@@ -51,9 +53,22 @@
                     </div>
                     <div class="col-span-2">
                         <label class="block text-sm font-medium text-gray-700 mb-1.5">Téléphone *</label>
-                        <input type="tel" name="phone" value="{{ old('phone', auth()->user()->phone) }}" required
-                               placeholder="+225 07 XX XX XX XX"
-                               class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E63B2E]">
+                        <div class="flex">
+                            <select x-model="countryCode" required @change="syncCountry($event)"
+                                    class="w-2/5 border border-gray-200 rounded-l-xl px-2 py-2.5 text-sm focus:outline-none focus:border-[#E63B2E]">
+                                @foreach($countries as $code => $country)
+                                <option value="{{ $code }}" data-dial="+{{ $country['dial'] }}" {{ $countryCode === $code ? 'selected' : '' }}>
+                                    {{ $country['name'] }} (+{{ $country['dial'] }})
+                                </option>
+                                @endforeach
+                            </select>
+                            <span x-text="dial" class="border-y border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-600 flex items-center"></span>
+                            <input type="tel" name="phone_local" value="{{ old('phone_local', $phoneLocal) }}" required
+                                   placeholder="Numéro de téléphone"
+                                   class="min-w-0 flex-1 border border-gray-200 rounded-r-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#E63B2E]">
+                        </div>
+                        @error('phone_local')<p class="text-xs text-[#E63B2E] mt-1">{{ $message }}</p>@enderror
+                        @error('country_code')<p class="text-xs text-[#E63B2E] mt-1">Choisissez un pays pour l’indicatif.</p>@enderror
                     </div>
                     <div class="col-span-2">
                         <label class="block text-sm font-medium text-gray-700 mb-1.5">Adresse *</label>
@@ -68,8 +83,12 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1.5">Pays *</label>
-                        <input type="text" name="pays" value="{{ old('pays', auth()->user()->pays ?? 'Côte d\'Ivoire') }}" required
-                               class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#E63B2E]">
+                        <select name="country_code" x-model="countryCode" required @change="syncCountry($event)"
+                                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#E63B2E]">
+                            @foreach($countries as $code => $country)
+                            <option value="{{ $code }}" {{ $countryCode === $code ? 'selected' : '' }}>{{ $country['name'] }}</option>
+                            @endforeach
+                        </select>
                     </div>
                     <div class="col-span-2">
                         <label class="block text-sm font-medium text-gray-700 mb-1.5">Notes (optionnel)</label>

@@ -31,9 +31,20 @@ class CheckoutController extends Controller
         $fraisLivraison = (float) Setting::get('frais_livraison', 2000);
         $total          = $subtotal + $fraisLivraison;
 
+        $countries = config('phone_countries');
+        $countryCode = collect($countries)->search(fn (array $country) => $country['name'] === $user->pays) ?: 'CI';
+        if (isset($countries[old('country_code')])) {
+            $countryCode = old('country_code');
+        }
+        $phoneLocal = preg_replace('/\D+/', '', (string) $user->phone);
+        if (str_starts_with($phoneLocal, '00')) {
+            $phoneLocal = substr($phoneLocal, 2);
+        }
+        $phoneLocal = preg_replace('/^' . preg_quote($countries[$countryCode]['dial'], '/') . '/', '', $phoneLocal);
+        $phoneLocal = ltrim($phoneLocal, '0');
         $hasSavedAddress = filled($user->adresse) && filled($user->ville) && filled($user->pays) && filled($user->phone);
 
-        return view('checkout.index', compact('cartItems', 'subtotal', 'fraisLivraison', 'total', 'hasSavedAddress'));
+        return view('checkout.index', compact('cartItems', 'subtotal', 'fraisLivraison', 'total', 'hasSavedAddress', 'countries', 'countryCode', 'phoneLocal'));
     }
 
     public function store(Request $request)
@@ -41,10 +52,10 @@ class CheckoutController extends Controller
         $request->validate([
             'nom'          => 'required|string|max:150',
             'email'        => 'required|email',
-            'phone'        => 'required|string|max:20',
+            'country_code' => 'required|in:' . implode(',', array_keys(config('phone_countries'))),
+            'phone_local'  => 'required|string|max:20',
             'adresse'      => 'required|string|max:255',
             'ville'        => 'required|string|max:100',
-            'pays'         => 'required|string|max:100',
             'notes'        => 'nullable|string|max:1000',
         ]);
 
@@ -60,20 +71,29 @@ class CheckoutController extends Controller
             return redirect('/cart')->with('error', 'Votre panier est vide.');
         }
 
+        $countries = config('phone_countries');
+        $country = $countries[$request->country_code];
+        $localPhone = ltrim(preg_replace('/\D+/', '', $request->phone_local), '0');
+        if ($localPhone === '' || strlen($localPhone) < 6 || strlen($localPhone) > 15) {
+            return back()->withErrors(['phone_local' => 'Veuillez saisir un numéro de téléphone valide.'])->withInput();
+        }
+        $phone = '+' . $country['dial'] . $localPhone;
+
         $user->update([
-            'phone'   => $request->phone,
+            'name'    => $request->nom,
+            'phone'   => $phone,
             'adresse' => $request->adresse,
             'ville'   => $request->ville,
-            'pays'    => $request->pays,
+            'pays'    => $country['name'],
         ]);
 
         $request->session()->put('checkout.adresse_livraison', [
             'nom'     => $request->nom,
             'email'   => $request->email,
-            'phone'   => $request->phone,
+            'phone'   => $phone,
             'adresse' => $request->adresse,
             'ville'   => $request->ville,
-            'pays'    => $request->pays,
+            'pays'    => $country['name'],
         ]);
         $request->session()->put('checkout.notes', $request->notes);
 
