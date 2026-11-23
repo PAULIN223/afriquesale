@@ -46,25 +46,17 @@
             <h3 class="font-bold text-gray-800 mb-3">Adresse de livraison</h3>
             @php
                 $addr = $order->adresse_livraison ?? [];
-                $clientPhone = trim((string) ($addr['phone'] ?? $order->user?->phone ?? ''));
+                $clientPhone = trim((string) ($addr['phone'] ?? $addr['telephone'] ?? $order->user?->phone ?? ''));
                 $phoneDigits = preg_replace('/\D+/', '', $clientPhone);
-                $countryKey = preg_replace(
-                    '/[^a-z]/',
-                    '',
-                    \Illuminate\Support\Str::ascii(\Illuminate\Support\Str::lower((string) ($addr['pays'] ?? '')))
-                );
-                $hasInternationalPrefix = str_starts_with($clientPhone, '+')
-                    || str_starts_with($phoneDigits, '00')
-                    || str_starts_with($phoneDigits, '225');
+                $hasInternationalPrefix = str_starts_with($clientPhone, '+') || str_starts_with($phoneDigits, '00');
 
                 if (str_starts_with($phoneDigits, '00')) {
                     $phoneDigits = substr($phoneDigits, 2);
-                } elseif (!$hasInternationalPrefix && $countryKey === 'cotedivoire') {
+                } elseif (!$hasInternationalPrefix && !str_starts_with($phoneDigits, '225')) {
                     $phoneDigits = '225' . ltrim($phoneDigits, '0');
                 }
 
-                $whatsappNumber = ($hasInternationalPrefix || $countryKey === 'cotedivoire')
-                    && strlen($phoneDigits) >= 8
+                $whatsappNumber = strlen($phoneDigits) >= 8
                     && strlen($phoneDigits) <= 15
                         ? $phoneDigits
                         : null;
@@ -94,19 +86,12 @@
         @if($order->preuve_paiement)
         <div class="bg-white rounded-2xl border border-gray-100 p-5">
             <h3 class="font-bold text-gray-800 mb-3">Preuve de paiement</h3>
-            @php
-                $preuveDisk = \Illuminate\Support\Facades\Storage::disk('public');
-                $preuveUrl = $preuveDisk->url($order->preuve_paiement);
-            @endphp
-            @if($preuveDisk->exists($order->preuve_paiement))
+            @php($preuveUrl = route('admin.orders.preuve', $order->id))
             <a href="{{ $preuveUrl }}" target="_blank" rel="noopener noreferrer" class="block">
                 <img src="{{ $preuveUrl }}" alt="Preuve de paiement de la commande {{ $order->numero_commande }}"
                      loading="lazy" class="w-full max-h-96 rounded-xl object-contain object-left-top border border-gray-100">
             </a>
             <p class="text-xs text-gray-400 mt-2">Cliquer sur l’image pour l’ouvrir en grand.</p>
-            @else
-            <p class="text-sm text-orange-600">Le fichier de preuve est introuvable sur le stockage public.</p>
-            @endif
         </div>
         @endif
     </div>

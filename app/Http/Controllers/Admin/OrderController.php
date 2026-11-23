@@ -7,6 +7,7 @@ use App\Models\Message;
 use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Facades\Storage;
 
 class OrderController extends Controller
 {
@@ -34,6 +35,29 @@ class OrderController extends Controller
     {
         $order = Order::with(['user', 'items.product'])->findOrFail($id);
         return view('admin.orders.show', compact('order'));
+    }
+
+    public function preuve(int $id)
+    {
+        $order = Order::findOrFail($id);
+        abort_unless(filled($order->preuve_paiement), 404);
+
+        $path = ltrim(str_replace('\\', '/', $order->preuve_paiement), '/');
+        if (str_starts_with($path, 'storage/')) {
+            $path = substr($path, strlen('storage/'));
+        }
+        abort_if(collect(explode('/', $path))->contains('..'), 404);
+
+        $disk = Storage::disk('public');
+        if ($disk->exists($path)) {
+            return response()->file($disk->path($path));
+        }
+
+        // Older deployments may have written files directly under public/storage.
+        $legacyPath = public_path('storage/' . $path);
+        abort_unless(is_file($legacyPath), 404);
+
+        return response()->file($legacyPath);
     }
 
     public function updateStatut(Request $request, int $id)

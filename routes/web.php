@@ -94,6 +94,7 @@ Route::middleware(['auth', 'admin', 'noindex'])->prefix('admin')->name('admin.')
     // Orders (MySQL)
     Route::get('/orders',              [Admin\OrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{id}',         [Admin\OrderController::class, 'show'])->name('orders.show');
+    Route::get('/orders/{id}/preuve',  [Admin\OrderController::class, 'preuve'])->name('orders.preuve');
     Route::post('/orders/{id}/statut', [Admin\OrderController::class, 'updateStatut'])->name('orders.statut');
     Route::get('/orders/export/csv',   [Admin\OrderController::class, 'exportCsv'])->name('orders.export');
 
