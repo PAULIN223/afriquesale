@@ -36,6 +36,22 @@ class Product extends Model
             ->where('product_code', '!=', '');
     }
 
+    public function getDistinctVariantsAttribute()
+    {
+        return $this->variants
+            ->filter(function (Product $variant) {
+                $color = trim((string) $variant->color);
+
+                return $color !== '' && !preg_match('/^couleur\s*\d+$/iu', $color);
+            })
+            ->unique(function (Product $variant) {
+                $color = preg_replace('/\s+/u', ' ', trim((string) $variant->color));
+
+                return mb_strtolower($color, 'UTF-8');
+            })
+            ->values();
+    }
+
     public function orderItems()
     {
         return $this->hasMany(OrderItem::class);

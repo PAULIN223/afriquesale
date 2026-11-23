@@ -74,20 +74,28 @@
     @php
         $gallery = $product->gallery_images;
         $mainImage = $gallery[0] ?? null;
+        $variantGroups = $variants
+            ->filter(fn ($variant) => filled($variant->color) && !preg_match('/^couleur\s*\d+$/iu', trim($variant->color)))
+            ->groupBy(fn ($variant) => mb_strtolower(preg_replace('/\s+/u', ' ', trim($variant->color)), 'UTF-8'))
+            ->map(fn ($group) => $group->unique(fn ($variant) => mb_strtolower(trim((string) $variant->size) . '|' . trim((string) $variant->model), 'UTF-8'))->values());
+        $initialVariantGroup = $variantGroups->count() === 1 ? $variantGroups->first() : collect();
+        $needsVariantChoice = $variantGroups->count() > 1 || $variantGroups->contains(fn ($group) => $group->count() > 1);
+        $initialVariant = $initialVariantGroup->count() === 1 ? $initialVariantGroup->first() : null;
     @endphp
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-10"
          x-data="{
-             activeId: {{ $variants->count() > 1 ? 'null' : $product->id }},
+             activeId: {{ $needsVariantChoice ? 'null' : ($initialVariant?->id ?? $product->id) }},
              activeName: '{{ addslashes($product->nom) }}',
-             activePrice: {{ $product->display_price }},
-             activeOriginalPrice: {{ $product->prix_original ?: 'null' }},
-             activeDiscountPercent: {{ $product->discount_percent ?: 'null' }},
-             activeStock: {{ $variants->count() > 1 ? 0 : $product->stock }},
-             activeImage: '{{ $mainImage ? '/image-proxy?url=' . urlencode($mainImage) : '/images/placeholder.png' }}',
-             activeColor: '{{ $variants->count() > 1 ? '' : addslashes($product->color) }}',
-             isOutOfStock: {{ $variants->count() > 1 ? 'false' : ($product->is_out_of_stock ? 'true' : 'false') }},
-             isPurchasable: {{ $variants->count() > 1 ? 'false' : ($product->is_purchasable ? 'true' : 'false') }},
+             activePrice: {{ $initialVariant?->display_price ?? $product->display_price }},
+             activeOriginalPrice: {{ (($initialVariant?->discounted_price ?? $product->discounted_price) ? ($initialVariant?->prix ?? $product->prix) : ($initialVariant?->prix_original ?? $product->prix_original)) ?: 'null' }},
+             activeDiscountPercent: {{ ($initialVariant?->discount_percent ?? $product->discount_percent) ?: 'null' }},
+             activeStock: {{ $needsVariantChoice ? 0 : ($initialVariant?->stock ?? $product->stock) }},
+             activeImage: @js($initialVariant?->image_src ?? ($mainImage ? '/image-proxy?url=' . urlencode($mainImage) : '/images/placeholder.png')),
+             activeColor: @js($initialVariant?->color ?? ($variantGroups->count() === 1 ? $variantGroups->first()->first()->color : $product->color)),
+             activeColorKey: @js($variantGroups->count() === 1 ? $variantGroups->keys()->first() : ''),
+             isOutOfStock: {{ $needsVariantChoice ? 'false' : (($initialVariant?->is_out_of_stock ?? $product->is_out_of_stock) ? 'true' : 'false') }},
+             isPurchasable: {{ $needsVariantChoice ? 'false' : (($initialVariant?->is_purchasable ?? $product->is_purchasable) ? 'true' : 'false') }},
              qty: 1
          }">
 
@@ -129,8 +137,8 @@
             {{-- Price --}}
             <div class="flex items-center gap-3 mb-5">
                 <span class="text-3xl font-bold text-gray-900" x-text="new Intl.NumberFormat('fr-FR').format(activePrice) + ' FCFA'"></span>
-                <span class="text-lg text-gray-400 line-through" x-show="activeOriginalPrice" x-text="new Intl.NumberFormat('fr-FR').format(activeOriginalPrice) + ' FCFA'"></span>
-                <span class="bg-[#E63B2E] text-white text-sm font-bold px-2.5 py-0.5 rounded-lg" x-show="activeOriginalPrice && activeDiscountPercent" x-text="'-' + activeDiscountPercent + '%'"></span>
+                <span class="text-lg text-gray-400 line-through" x-show="activeOriginalPrice && activeOriginalPrice > activePrice" x-text="new Intl.NumberFormat('fr-FR').format(activeOriginalPrice) + ' FCFA'"></span>
+                <span class="bg-[#E63B2E] text-white text-sm font-bold px-2.5 py-0.5 rounded-lg" x-show="activeOriginalPrice && activeOriginalPrice > activePrice && activeDiscountPercent" x-text="'-' + activeDiscountPercent + '%'"></span>
             </div>
 
             {{-- Stock --}}
@@ -146,49 +154,71 @@
                 </span>
             </div>
 
-            {{-- Couleurs disponibles --}}
-            @if($variants->count() > 0)
+            {{-- Couleurs et tailles disponibles --}}
+            @if($variantGroups->isNotEmpty())
             <div class="border-t border-gray-100 pt-5 mb-5">
-                <div class="flex items-center justify-between mb-2">
-                    <h3 class="text-xs font-semibold uppercase text-gray-400 tracking-wider">Couleurs disponibles</h3>
-                    <span class="text-xs font-medium text-gray-500">
-                        Sélectionnée : <span class="text-[#E63B2E] font-bold" x-text="activeColor || 'Aucune'"></span>
-                    </span>
-                </div>
-                
-                <p class="text-xs text-gray-500 mb-3">
-                    Options : <span class="font-medium text-gray-700">{{ $variants->pluck('color')->filter()->unique()->implode(', ') }}</span>
-                </p>
-                <div class="flex flex-wrap gap-3">
-                    @foreach($variants as $v)
+                @if($variantGroups->count() > 1)
+                <h3 class="text-xs font-semibold uppercase text-gray-400 tracking-wider mb-3">Couleurs disponibles</h3>
+                <div class="flex flex-wrap gap-3 mb-4">
+                    @foreach($variantGroups as $colorKey => $colorVariants)
+                    @php $colorVariant = $colorVariants->first(); @endphp
                     <button type="button"
-                       @click="
-                           activeId = {{ $v->id }};
-                           activePrice = {{ $v->display_price }};
-                           activeOriginalPrice = {{ $v->prix_original ?: 'null' }};
-                           activeDiscountPercent = {{ $v->discount_percent ?: 'null' }};
-                           activeStock = {{ $v->stock }};
-                           activeImage = '{{ $v->image_src }}';
-                           activeColor = '{{ addslashes($v->color) }}';
-                           isOutOfStock = {{ $v->is_out_of_stock ? 'true' : 'false' }};
-                           isPurchasable = {{ $v->is_purchasable ? 'true' : 'false' }};
-                           qty = 1;
-                       "
-                       class="group relative block w-16 h-16 rounded-xl border overflow-hidden transition-all"
-                       :class="activeId === {{ $v->id }} ? 'border-[#E63B2E] ring-2 ring-[#E63B2E]/20' : 'border-gray-200 hover:border-[#E63B2E] bg-white'">
-                        <img src="{{ $v->image_src }}" alt="{{ $v->color ?: $v->nom }}" class="w-full h-full object-cover">
-                        
-                        {{-- Overlay --}}
-                        <div class="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] py-0.5 text-center truncate px-1 font-semibold">
-                            {{ $v->color ?: 'Couleur' }}
-                        </div>
-
-                        <span x-show="activeId === {{ $v->id }}" class="absolute top-1 right-1 w-4 h-4 bg-[#E63B2E] text-white rounded-full flex items-center justify-center shadow-sm z-10">
-                            <i data-lucide="check" class="w-2.5 h-2.5"></i>
-                        </span>
+                        @click="
+                            activeColor = @js($colorVariant->color);
+                            activeColorKey = @js($colorKey);
+                            @if($colorVariants->count() === 1)
+                            activeId = {{ $colorVariant->id }};
+                            activePrice = {{ $colorVariant->display_price }};
+                            activeOriginalPrice = {{ ($colorVariant->discounted_price ? $colorVariant->prix : $colorVariant->prix_original) ?: 'null' }};
+                            activeDiscountPercent = {{ $colorVariant->discount_percent ?: 'null' }};
+                            activeStock = {{ $colorVariant->stock }};
+                            activeImage = @js($colorVariant->image_src);
+                            isOutOfStock = {{ $colorVariant->is_out_of_stock ? 'true' : 'false' }};
+                            isPurchasable = {{ $colorVariant->is_purchasable ? 'true' : 'false' }};
+                            @else
+                            activeId = null;
+                            isPurchasable = false;
+                            @endif
+                            qty = 1;
+                        "
+                        class="group relative block w-16 h-16 rounded-xl border overflow-hidden transition-all"
+                        :class="activeColorKey === @js($colorKey) ? 'border-[#E63B2E] ring-2 ring-[#E63B2E]/20' : 'border-gray-200 hover:border-[#E63B2E] bg-white'">
+                        <img src="{{ $colorVariant->image_src }}" alt="{{ $colorVariant->color }}" class="w-full h-full object-cover">
+                        <span class="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] py-0.5 text-center truncate px-1 font-semibold">{{ $colorVariant->color }}</span>
                     </button>
                     @endforeach
                 </div>
+                @endif
+
+                @foreach($variantGroups as $colorKey => $colorVariants)
+                @if($colorVariants->count() > 1)
+                <div class="mb-3" @if($variantGroups->count() > 1) x-show="activeColorKey === @js($colorKey)" @endif>
+                    <h3 class="text-xs font-semibold uppercase text-gray-400 tracking-wider mb-2">Tailles / modèles</h3>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach($colorVariants as $v)
+                        <button type="button"
+                            @click="
+                                activeId = {{ $v->id }};
+                                activePrice = {{ $v->display_price }};
+                                activeOriginalPrice = {{ ($v->discounted_price ? $v->prix : $v->prix_original) ?: 'null' }};
+                                activeDiscountPercent = {{ $v->discount_percent ?: 'null' }};
+                                activeStock = {{ $v->stock }};
+                                activeImage = @js($v->image_src);
+                                activeColor = @js($v->color);
+                                activeColorKey = @js($colorKey);
+                                isOutOfStock = {{ $v->is_out_of_stock ? 'true' : 'false' }};
+                                isPurchasable = {{ $v->is_purchasable ? 'true' : 'false' }};
+                                qty = 1;
+                            "
+                            :class="activeId === {{ $v->id }} ? 'border-[#E63B2E] bg-[#E63B2E]/10 text-[#E63B2E]' : 'border-gray-200 text-gray-700 hover:border-[#E63B2E]'"
+                            class="px-3 py-2 rounded-lg border text-sm transition-colors">
+                            {{ collect([$v->size, $v->model])->filter()->implode(' · ') ?: 'Option' }}
+                        </button>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+                @endforeach
             </div>
             @endif
 
@@ -265,7 +295,7 @@
 
             <div x-show="activeId === null || !isPurchasable">
                 <button disabled class="w-full bg-gray-100 text-gray-400 py-3.5 rounded-xl font-semibold text-sm cursor-not-allowed">
-                    <span x-text="activeId === null ? 'Choisissez une couleur' : 'Produit indisponible'"></span>
+                    <span x-text="activeId === null ? 'Choisissez une couleur ou une taille' : 'Produit indisponible'"></span>
                 </button>
             </div>
 

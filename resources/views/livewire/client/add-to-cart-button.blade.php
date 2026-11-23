@@ -12,7 +12,7 @@
         <span x-show="!justAdded" class="flex items-center gap-1.5">
             <span wire:loading.remove wire:target="add" class="flex items-center gap-1.5">
                 <i data-lucide="shopping-cart" class="w-3.5 h-3.5" x-show="typeof activeId === 'undefined' || activeId !== null"></i>
-                <span x-text="typeof activeId !== 'undefined' && activeId === null ? 'Veuillez choisir une couleur' : (typeof isPurchasable !== 'undefined' ? (isPurchasable ? 'Ajouter' : 'Rupture de stock') : ({{ $product->is_purchasable ? 'true' : 'false' }} ? 'Ajouter' : 'Rupture de stock'))"></span>
+                <span x-text="typeof activeId !== 'undefined' && activeId === null ? 'Choisissez une option' : (typeof isPurchasable !== 'undefined' ? (isPurchasable ? 'Ajouter' : 'Rupture de stock') : ({{ $product->is_purchasable ? 'true' : 'false' }} ? 'Ajouter' : 'Rupture de stock'))"></span>
             </span>
             <span wire:loading wire:target="add">...</span>
         </span>

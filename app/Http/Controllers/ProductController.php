@@ -36,7 +36,7 @@ class ProductController extends Controller
         // On ne garde qu'un seul représentant par code article (celui avec une image, sinon le plus ancien).
         $representativeIds = (clone $query)
             ->selectRaw("SUBSTRING_INDEX(GROUP_CONCAT(id ORDER BY (image_url IS NULL) ASC, id ASC), ',', 1) as id")
-            ->groupByRaw("COALESCE(NULLIF(product_code, ''), CONCAT(nom, '#', COALESCE(category_id, '')))")
+            ->groupByRaw("COALESCE(NULLIF(product_code, ''), CONCAT('id#', id))")
             ->pluck('id');
         $query->whereIn('id', $representativeIds);
 
@@ -79,18 +79,9 @@ class ProductController extends Controller
 
         $variants = Product::actif()
             ->inVariantGroup($product)
-            ->where(function ($q) use ($product) {
-                $q->where(function ($q) {
-                    $q->whereNotNull('image_url')->orWhereNotNull('image_urls');
-                });
-
-                if (!filled($product->product_code)) {
-                    $q->whereNotNull('color');
-                }
-            })
+            ->when(!filled($product->product_code), fn ($q) => $q->whereNotNull('color')->where('color', '!=', ''))
             ->orderByRaw('color IS NULL')
             ->orderBy('color')
-            ->take(12)
             ->get();
 
         $related = Product::actif()
