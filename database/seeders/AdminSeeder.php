@@ -10,17 +10,26 @@ class AdminSeeder extends Seeder
 {
     public function run(): void
     {
+        $adminEmail = env('ADMIN_EMAIL');
+        $adminPassword = env('ADMIN_PASSWORD');
+
+        if (!filled($adminEmail) || !filled($adminPassword)) {
+            $this->command->warn('AdminSeeder ignoré : définissez ADMIN_EMAIL et ADMIN_PASSWORD dans l’environnement.');
+
+            return;
+        }
+
         User::updateOrCreate(
-            ['email' => 'sale@admin.com'],
+            ['email' => $adminEmail],
             [
                 'name'              => 'AfricSales Admin',
-                'password'          => Hash::make('salemaket'),
+                'password'          => Hash::make($adminPassword),
                 'role'              => 'admin',
                 'statut'            => 'active',
                 'email_verified_at' => now(),
             ]
         );
 
-        $this->command->info('Admin créé : sale@admin.com / salemaket');
+        $this->command->info('Compte administrateur initialisé.');
     }
 }
