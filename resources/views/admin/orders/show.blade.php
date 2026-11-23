@@ -44,23 +44,69 @@
 
         <div class="bg-white rounded-2xl border border-gray-100 p-5">
             <h3 class="font-bold text-gray-800 mb-3">Adresse de livraison</h3>
-            @php $addr = $order->adresse_livraison; @endphp
+            @php
+                $addr = $order->adresse_livraison ?? [];
+                $clientPhone = trim((string) ($addr['phone'] ?? $order->user?->phone ?? ''));
+                $phoneDigits = preg_replace('/\D+/', '', $clientPhone);
+                $countryKey = preg_replace(
+                    '/[^a-z]/',
+                    '',
+                    \Illuminate\Support\Str::ascii(\Illuminate\Support\Str::lower((string) ($addr['pays'] ?? '')))
+                );
+                $hasInternationalPrefix = str_starts_with($clientPhone, '+')
+                    || str_starts_with($phoneDigits, '00')
+                    || str_starts_with($phoneDigits, '225');
+
+                if (str_starts_with($phoneDigits, '00')) {
+                    $phoneDigits = substr($phoneDigits, 2);
+                } elseif (!$hasInternationalPrefix && $countryKey === 'cotedivoire') {
+                    $phoneDigits = '225' . ltrim($phoneDigits, '0');
+                }
+
+                $whatsappNumber = ($hasInternationalPrefix || $countryKey === 'cotedivoire')
+                    && strlen($phoneDigits) >= 8
+                    && strlen($phoneDigits) <= 15
+                        ? $phoneDigits
+                        : null;
+                $whatsappMessage = rawurlencode(
+                    'Bonjour ' . ($order->user?->name ?? ($addr['nom'] ?? '')) .
+                    ', concernant votre commande ' . $order->numero_commande . '.'
+                );
+            @endphp
             <div class="grid grid-cols-2 gap-3 text-sm">
                 <div><p class="text-xs text-gray-400">Nom</p><p class="font-medium text-gray-700">{{ $addr['nom'] ?? '—' }}</p></div>
-                <div><p class="text-xs text-gray-400">Téléphone</p><p class="font-medium text-gray-700">{{ $addr['phone'] ?? '—' }}</p></div>
+                <div><p class="text-xs text-gray-400">Téléphone</p><p class="font-medium text-gray-700">{{ $clientPhone ?: '—' }}</p></div>
                 <div class="col-span-2"><p class="text-xs text-gray-400">Adresse</p><p class="font-medium text-gray-700">{{ $addr['adresse'] ?? '—' }}, {{ $addr['ville'] ?? '—' }}, {{ $addr['pays'] ?? '—' }}</p></div>
                 @if(!empty($addr['email']))
                 <div class="col-span-2"><p class="text-xs text-gray-400">Email</p><p class="font-medium text-gray-700">{{ $addr['email'] }}</p></div>
                 @endif
             </div>
+            @if($whatsappNumber)
+            <a href="https://wa.me/{{ $whatsappNumber }}?text={{ $whatsappMessage }}"
+               target="_blank" rel="noopener noreferrer"
+               class="inline-flex items-center gap-2 mt-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                <i data-lucide="message-circle" class="w-4 h-4"></i>
+                Contacter le client sur WhatsApp
+            </a>
+            @endif
         </div>
 
         @if($order->preuve_paiement)
         <div class="bg-white rounded-2xl border border-gray-100 p-5">
             <h3 class="font-bold text-gray-800 mb-3">Preuve de paiement</h3>
-            <a href="{{ '/storage/' . $order->preuve_paiement }}" target="_blank">
-                <img src="{{ '/storage/' . $order->preuve_paiement }}" class="max-h-64 rounded-xl object-contain border border-gray-100">
+            @php
+                $preuveDisk = \Illuminate\Support\Facades\Storage::disk('public');
+                $preuveUrl = $preuveDisk->url($order->preuve_paiement);
+            @endphp
+            @if($preuveDisk->exists($order->preuve_paiement))
+            <a href="{{ $preuveUrl }}" target="_blank" rel="noopener noreferrer" class="block">
+                <img src="{{ $preuveUrl }}" alt="Preuve de paiement de la commande {{ $order->numero_commande }}"
+                     loading="lazy" class="w-full max-h-96 rounded-xl object-contain object-left-top border border-gray-100">
             </a>
+            <p class="text-xs text-gray-400 mt-2">Cliquer sur l’image pour l’ouvrir en grand.</p>
+            @else
+            <p class="text-sm text-orange-600">Le fichier de preuve est introuvable sur le stockage public.</p>
+            @endif
         </div>
         @endif
     </div>
