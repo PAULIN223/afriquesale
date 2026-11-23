@@ -74,6 +74,9 @@
     @php
         $gallery = $product->gallery_images;
         $mainImage = $gallery[0] ?? null;
+        $productColor = filled($product->color) && !preg_match('/^couleur\s*\d+$/iu', trim($product->color))
+            ? trim($product->color)
+            : '';
         $variantGroups = $variants
             ->filter(fn ($variant) => filled($variant->color) && !preg_match('/^couleur\s*\d+$/iu', trim($variant->color)))
             ->groupBy(fn ($variant) => mb_strtolower(preg_replace('/\s+/u', ' ', trim($variant->color)), 'UTF-8'))
@@ -81,6 +84,7 @@
         $initialVariantGroup = $variantGroups->count() === 1 ? $variantGroups->first() : collect();
         $needsVariantChoice = $variantGroups->count() > 1 || $variantGroups->contains(fn ($group) => $group->count() > 1);
         $initialVariant = $initialVariantGroup->count() === 1 ? $initialVariantGroup->first() : null;
+        $initialColorVariant = $initialVariantGroup->first();
     @endphp
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-10"
@@ -91,9 +95,10 @@
              activeOriginalPrice: {{ (($initialVariant?->discounted_price ?? $product->discounted_price) ? ($initialVariant?->prix ?? $product->prix) : ($initialVariant?->prix_original ?? $product->prix_original)) ?: 'null' }},
              activeDiscountPercent: {{ ($initialVariant?->discount_percent ?? $product->discount_percent) ?: 'null' }},
              activeStock: {{ $needsVariantChoice ? 0 : ($initialVariant?->stock ?? $product->stock) }},
-             activeImage: @js($initialVariant?->image_src ?? ($mainImage ? '/image-proxy?url=' . urlencode($mainImage) : '/images/placeholder.png')),
-             activeColor: @js($initialVariant?->color ?? ($variantGroups->count() === 1 ? $variantGroups->first()->first()->color : $product->color)),
+             activeImage: @js($initialVariant?->image_src ?? $initialColorVariant?->image_src ?? ($mainImage ? '/image-proxy?url=' . urlencode($mainImage) : '/images/placeholder.png')),
+             activeColor: @js($initialVariant?->color ?? $initialColorVariant?->color ?? $productColor),
              activeColorKey: @js($variantGroups->count() === 1 ? $variantGroups->keys()->first() : ''),
+             isProductDetail: true,
              isOutOfStock: {{ $needsVariantChoice ? 'false' : (($initialVariant?->is_out_of_stock ?? $product->is_out_of_stock) ? 'true' : 'false') }},
              isPurchasable: {{ $needsVariantChoice ? 'false' : (($initialVariant?->is_purchasable ?? $product->is_purchasable) ? 'true' : 'false') }},
              qty: 1
@@ -166,13 +171,13 @@
                         @click="
                             activeColor = @js($colorVariant->color);
                             activeColorKey = @js($colorKey);
+                            activeImage = @js($colorVariant->image_src);
                             @if($colorVariants->count() === 1)
                             activeId = {{ $colorVariant->id }};
                             activePrice = {{ $colorVariant->display_price }};
                             activeOriginalPrice = {{ ($colorVariant->discounted_price ? $colorVariant->prix : $colorVariant->prix_original) ?: 'null' }};
                             activeDiscountPercent = {{ $colorVariant->discount_percent ?: 'null' }};
                             activeStock = {{ $colorVariant->stock }};
-                            activeImage = @js($colorVariant->image_src);
                             isOutOfStock = {{ $colorVariant->is_out_of_stock ? 'true' : 'false' }};
                             isPurchasable = {{ $colorVariant->is_purchasable ? 'true' : 'false' }};
                             @else
@@ -295,7 +300,7 @@
 
             <div x-show="activeId === null || !isPurchasable">
                 <button disabled class="w-full bg-gray-100 text-gray-400 py-3.5 rounded-xl font-semibold text-sm cursor-not-allowed">
-                    <span x-text="activeId === null ? 'Choisissez une couleur ou une taille' : 'Produit indisponible'"></span>
+                    <span x-text="activeId === null ? (activeColorKey ? 'Veuillez choisir une taille' : 'Veuillez choisir une couleur') : 'Produit indisponible'"></span>
                 </button>
             </div>
 

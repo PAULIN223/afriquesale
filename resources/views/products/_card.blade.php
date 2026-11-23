@@ -1,21 +1,20 @@
 @php
     $cardVariants = $product->distinct_variants;
-    $visibleVariants = $cardVariants->take(5);
-    $hiddenVariantCount = max(0, $cardVariants->count() - $visibleVariants->count());
+    $requiresColorChoice = $cardVariants->count() > 1;
+    $cardIsPurchasable = $requiresColorChoice
+        ? $cardVariants->contains(fn ($variant) => $variant->is_purchasable)
+        : $product->is_purchasable;
 @endphp
 <div x-data="{
-    activeId: {{ $cardVariants->count() > 1 ? 'null' : $product->id }},
-    activeImage: '{{ $product->image_url ? '/image-proxy?url=' . urlencode($product->image_url) : '/images/placeholder.png' }}',
+    activeId: {{ $product->id }},
     activeUrl: '/products/{{ $product->id }}',
-    activePrice: {{ $product->display_price }},
-    activeOriginalPrice: {{ ($product->discounted_price ? $product->prix : $product->prix_original) ?: 'null' }},
-    activeDiscountPercent: {{ $product->discount_percent ?: 'null' }},
-    isPurchasable: {{ $cardVariants->count() > 1 ? 'false' : ($product->is_purchasable ? 'true' : 'false') }},
-    isOutOfStock: {{ $product->is_out_of_stock ? 'true' : 'false' }}
+    requiresColorChoice: {{ $requiresColorChoice ? 'true' : 'false' }},
+    isPurchasable: {{ $cardIsPurchasable ? 'true' : 'false' }},
+    isOutOfStock: {{ $cardIsPurchasable ? 'false' : 'true' }}
 }" class="product-card h-full flex flex-col bg-white rounded-2xl border border-gray-100 overflow-hidden group">
     <div class="relative overflow-hidden aspect-square bg-gray-50">
-        <a :href="activeUrl">
-            <img :src="activeImage"
+        <a href="/products/{{ $product->id }}">
+            <img src="{{ $product->image_src }}"
                  alt="{{ $product->nom }}{{ ($product->category?->nom ?? $product->categorie) ? ' - ' . ($product->category?->nom ?? $product->categorie) : '' }} - AfricSales"
                  loading="lazy"
                  class="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105">
@@ -52,47 +51,21 @@
         @endauth
     </div>
     <div class="p-3 sm:p-4 flex flex-col flex-1">
-        <a :href="activeUrl" class="block">
+        <a href="/products/{{ $product->id }}" class="block">
             <p class="text-xs text-gray-400 mb-1">{{ $product->category?->nom ?? $product->categorie }}</p>
             <h3 class="font-semibold text-gray-800 text-sm leading-snug line-clamp-2 hover:text-[#E63B2E] transition-colors">{{ $product->nom }}</h3>
         </a>
 
-        {{-- Miniatures cliquables pour la sélection de couleur sur la carte --}}
-        @if($cardVariants->count() > 1)
-        <div class="flex flex-wrap items-center gap-1.5 mt-2.5">
-            @foreach($visibleVariants as $v)
-            <button type="button"
-                    @click="
-                        activeId = {{ $v->id }};
-                        activeImage = '{{ $v->image_src }}';
-                        activeUrl = '/products/{{ $v->id }}';
-                        activePrice = {{ $v->display_price }};
-                        activeOriginalPrice = {{ ($v->discounted_price ? $v->prix : $v->prix_original) ?: 'null' }};
-                        activeDiscountPercent = {{ $v->discount_percent ?: 'null' }};
-                        isPurchasable = {{ $v->is_purchasable ? 'true' : 'false' }};
-                        isOutOfStock = {{ $v->is_out_of_stock ? 'true' : 'false' }};
-                    "
-                    class="group relative block w-8 h-8 rounded-lg border overflow-hidden transition-all flex-shrink-0"
-                    :class="activeId === {{ $v->id }} ? 'border-[#E63B2E] ring-1 ring-[#E63B2E]/25' : 'border-gray-200 hover:border-[#E63B2E] bg-white'"
-                    title="{{ $v->color }}">
-                <img src="{{ $v->image_src }}" alt="{{ $v->color }}" class="w-full h-full object-cover">
-                <div class="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[7px] py-0.5 text-center truncate px-0.5 font-semibold leading-none pointer-events-none">
-                    {{ $v->color }}
-                </div>
-            </button>
-            @endforeach
-            @if($hiddenVariantCount > 0)
-            <span class="text-xs text-gray-500 font-medium">+{{ $hiddenVariantCount }}</span>
-            @endif
-        </div>
-        @endif
-
         <div class="flex items-center justify-between mt-auto pt-2.5">
             <div>
-                <span class="font-bold text-gray-900 text-base" x-text="new Intl.NumberFormat('fr-FR').format(activePrice) + ' FCFA'"></span>
-                <span class="text-xs text-gray-400 line-through ml-1" x-show="activeOriginalPrice && activeOriginalPrice > activePrice" x-text="new Intl.NumberFormat('fr-FR').format(activeOriginalPrice) + ' FCFA'"></span>
+                <span class="font-bold text-gray-900 text-base">{{ number_format($product->display_price, 0, ',', ' ') }} FCFA</span>
+                @if($product->discount_percent && (($product->discounted_price && $product->discounted_price < $product->prix) || ($product->prix_original && $product->prix_original > $product->display_price)))
+                <span class="text-xs text-gray-400 line-through ml-1">{{ number_format($product->discounted_price ? $product->prix : $product->prix_original, 0, ',', ' ') }} FCFA</span>
+                @endif
             </div>
-            <span x-show="activeDiscountPercent" class="bg-[#E63B2E] text-white text-xs font-bold px-2 py-0.5 rounded-lg" x-text="'-' + activeDiscountPercent + '%'"></span>
+            @if($product->discount_percent)
+            <span class="bg-[#E63B2E] text-white text-xs font-bold px-2 py-0.5 rounded-lg">-{{ $product->discount_percent }}%</span>
+            @endif
             <span x-show="isOutOfStock" class="text-xs text-gray-400 font-medium">Rupture</span>
         </div>
         <div class="mt-3">

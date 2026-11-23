@@ -77,12 +77,13 @@ class ProductController extends Controller
     {
         $product = Product::actif()->with('category')->findOrFail($id);
 
-        $variants = Product::actif()
-            ->inVariantGroup($product)
-            ->when(!filled($product->product_code), fn ($q) => $q->whereNotNull('color')->where('color', '!=', ''))
-            ->orderByRaw('color IS NULL')
-            ->orderBy('color')
-            ->get();
+        $variants = filled($product->product_code)
+            ? Product::actif()
+                ->inVariantGroup($product)
+                ->orderByRaw('color IS NULL')
+                ->orderBy('color')
+                ->get()
+            : collect();
 
         $related = Product::actif()
             ->where('id', '!=', $product->id)
